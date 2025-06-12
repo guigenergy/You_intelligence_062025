@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "youon-intelligence"
+version = "0.1.0"
+description = "Youon Intelligence platform"
+authors = ["You.On"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
