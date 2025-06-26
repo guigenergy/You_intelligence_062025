@@ -7,9 +7,9 @@ import { CNAE_SEGMENTOS } from '@/utils/cnae';
 
 export default function FiltroSegmento() {
   const { segmento, setSegmento } = useFilters();
-  const { data: leads = [] } = useLeads();
+  const { leads = [], isLoading, error } = useLeads();
 
-  const cnaesUnicos = [...new Set(leads.map((l) => l.CNAE).filter(Boolean))];
+  const cnaesUnicos = [...new Set(leads.map((l) => l.cnae).filter(Boolean))];
 
   return (
     <label className="text-sm text-white flex items-center gap-2">

@@ -10,7 +10,7 @@ const fetcher = (url: string) =>
   })
 
 export function useLeads() {
-  const { data, error, isValidating } = useSWR<LeadList>('/leads', fetcher, {
+  const { data, error, isValidating } = useSWR<LeadList>('/v1/leads', fetcher, {
     revalidateOnFocus: false,
     onErrorRetry: () => {},
   })

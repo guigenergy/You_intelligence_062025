@@ -127,6 +127,9 @@ Let me know if you want descriptions per folder or to bootstrap the first job or
 
    ```bash
    uvicorn apps.api.main:app --reload
+   python -m venv venv
+   venv\Scripts\activate  
+
    ```
 
 5. **Rode um job (exemplo)**

@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
-from routes.health import router as health_router
-from routes.leads import router as leads_router
+from apps.api.config import get_settings
+from apps.api.routes.health import router as health_router
+from apps.api.routes.leads import router as leads_router
 
 settings = get_settings()
 
