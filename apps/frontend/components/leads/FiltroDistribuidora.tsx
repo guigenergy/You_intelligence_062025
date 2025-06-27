@@ -4,28 +4,29 @@ import { useFilters } from '@/store/filters';
 import { useLeads } from '@/services/leads';
 import { DISTRIBUIDORAS_MAP } from '@/utils/distribuidoras';
 
-export default function FiltroDistribuidora() {
-  const { distribuidora, setDistribuidora } = useFilters();
-  const { data: leads = [] } = useLeads();
+type Props = {
+  distribuidoras: string[];
+  value: string;
+  onChange: (value: string) => void;
+};
 
-  // Coleta os códigos únicos das distribuidoras nos dados
-  const codigos = [...new Set(leads.map((l) => l.codigoDistribuidora))];
-
+export default function FiltroDistribuidora({ distribuidoras, value, onChange }: Props) {
   return (
-    <label className="text-sm text-white flex items-center gap-2">
+    <label className="flex items-center gap-2 text-white text-sm">
       Distribuidora:
       <select
-        value={distribuidora}
-        onChange={(e) => setDistribuidora(e.target.value)}
-        className="text-xs text-white bg-zinc-800 border border-zinc-600 px-3 py-1.5 rounded-md shadow-sm hover:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-lime-500 transition"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-zinc-800 text-xs text-white border border-zinc-600 px-2 py-1 rounded"
       >
         <option value="">Todas</option>
-        {codigos.map((cod) => (
-          <option key={cod} value={cod}>
-            {DISTRIBUIDORAS_MAP[cod] || `Distribuidora ${cod}`}
+        {distribuidoras.map((d) => (
+          <option key={d} value={d}>
+            {d}
           </option>
         ))}
       </select>
     </label>
   );
 }
+

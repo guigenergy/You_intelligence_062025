@@ -10,7 +10,7 @@ from apps.api.schemas.lead import (
     LeadQualidade,     # precisa estar declarado no schemas/lead.py
 )
 from apps.api.services import lead_service
-
+from sqlalchemy import select
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 @router.get("", response_model=LeadList)
@@ -71,3 +71,10 @@ async def lead_qualidade(
     if not qualidade:
         raise HTTPException(status_code=404, detail="Qualidade não encontrada")
     return qualidade
+
+@router.get("/distribuidoras", response_model=list[str])
+async def listar_distribuidoras(db: AsyncSession = Depends(get_session)):
+    result = await db.execute(
+        select(Lead.distribuidora).distinct().order_by(Lead.distribuidora)
+    )
+    return [row[0] for row in result.all()]

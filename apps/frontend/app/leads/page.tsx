@@ -1,88 +1,41 @@
-'use client'
+'use client';
 
-import { useMemo, useState, ChangeEvent } from 'react'
-import LeadsTable from '@/components/leads/LeadsTable'
-import FiltroDistribuidora from '@/components/leads/FiltroDistribuidora'
-import FiltroSegmento from '@/components/leads/FiltroSegmento'
-import { useFilters } from '@/store/filters'
-import { useSort } from '@/store/sort'
-import { useLeads } from '@/services/leads'
-import { CNAE_SEGMENTOS } from '@/utils/cnae'
-import { DISTRIBUIDORAS_MAP } from '@/utils/distribuidoras'
-import { stripDiacritics } from '@/utils/stripDiacritics'
-import { Download, FileDown } from 'lucide-react'
-import * as XLSX from 'xlsx'
-import type { Lead } from '@/app/types/lead'
+import { useState, ChangeEvent } from 'react';
+import LeadsTable from '@/components/leads/LeadsTable';
+import FiltroDistribuidora from '@/components/leads/FiltroDistribuidora';
+import FiltroSegmento from '@/components/leads/FiltroSegmento';
+import { useFilters } from '@/store/filters';
+import { useSort } from '@/store/sort';
+import { CNAE_SEGMENTOS } from '@/utils/cnae';
+import { DISTRIBUIDORAS_MAP } from '@/utils/distribuidoras';
+import { stripDiacritics } from '@/utils/stripDiacritics';
+import { Download, FileDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import type { Lead } from '@/app/types/lead';
+import { useLeads } from '@/services/leads';
 
-function exportarParaExcel(leadsParaExportar: Lead[], nomeArquivo = 'leads.xlsx') {
-  const worksheet = XLSX.utils.json_to_sheet(leadsParaExportar)
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads')
-  XLSX.writeFile(workbook, nomeArquivo)
+
+function exportarParaExcel(leads: Lead[], nome = 'leads.xlsx') {
+  const worksheet = XLSX.utils.json_to_sheet(leads);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
+  XLSX.writeFile(workbook, nome);
 }
 
 export default function LeadsPage() {
-  const [mostrarFiltros, setMostrarFiltros] = useState(false)
-  const [buscaInput, setBuscaInput] = useState('')
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [buscaInput, setBuscaInput] = useState('');
 
-  const { estado, distribuidora, segmento, clearFilters, setEstado, setBusca, busca } = useFilters()
-  const { order, setOrder } = useSort()
-  const { leads, total, isLoading, error } = useLeads()
+  const { estado, distribuidora, segmento, busca, clearFilters, setEstado, setBusca, setDistribuidora  } = useFilters();
+  const { leads } = useLeads(1, {}, 10000);
 
-  // ✅ Esses dois hooks devem vir antes de qualquer return condicional
-  const estados = useMemo<string[]>(() => {
-    return Array.from(
-      new Set(
-        leads
-          .map((l) => l.estado)
-          .filter((uf): uf is string => Boolean(uf))
-      )
-    ).sort()
-  }, [leads])
-
-  const rows = useMemo<Lead[]>(() => {
-    let arr = [...leads]
-
-    if (estado) arr = arr.filter((l) => l.estado === estado)
-    if (distribuidora) arr = arr.filter((l) => Number(l.distribuidora) === Number(distribuidora))
-    if (segmento) arr = arr.filter((l) => l.cnae === segmento)
-
-    if (busca) {
-      const term = stripDiacritics(busca.toLowerCase())
-      arr = arr.filter((l) => {
-        const nome = stripDiacritics(l.nome?.toLowerCase() ?? '')
-        const uf = stripDiacritics(l.estado?.toLowerCase() ?? '')
-        const cnae = stripDiacritics(l.cnae?.toLowerCase() ?? '')
-        const distName = stripDiacritics((DISTRIBUIDORAS_MAP[l.distribuidora] ?? l.distribuidora).toString().toLowerCase())
-        const segName = stripDiacritics((l.cnae && CNAE_SEGMENTOS[l.cnae]?.toLowerCase()) ?? '')
-
-        return nome.includes(term) || uf.includes(term) || cnae.includes(term) || distName.includes(term) || segName.includes(term)
-      })
-    }
-
-    switch (order) {
-      case 'dic-asc':
-        arr.sort((a, b) => (a.dicMed ?? 0) - (b.dicMed ?? 0)); break
-      case 'dic-desc':
-        arr.sort((a, b) => (b.dicMed ?? 0) - (a.dicMed ?? 0)); break
-      case 'fic-asc':
-        arr.sort((a, b) => (a.ficMed ?? 0) - (b.ficMed ?? 0)); break
-      case 'fic-desc':
-        arr.sort((a, b) => (b.ficMed ?? 0) - (a.ficMed ?? 0)); break
-    }
-
-    return arr
-  }, [leads, estado, distribuidora, segmento, order, busca])
-
-  // ✅ só aqui os returns condicionais
-  if (isLoading) return <p className="p-6 text-white">Carregando…</p>
-  if (error) return <p className="p-6 text-red-500">Erro ao carregar leads: {error.message}</p>
-
+  const { order, setOrder } = useSort();
+  const distribuidorasUnicas = Array.from(
+  new Set(leads.map((l) => l.distribuidora).filter(Boolean))
+  ).sort();
   return (
     <section className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold text-white">
-        Leads ({rows.length} de {total})
-      </h1>
+      <h1 className="text-2xl font-bold text-white">Leads</h1>
 
       <button
         onClick={() => setMostrarFiltros((v) => !v)}
@@ -97,17 +50,13 @@ export default function LeadsPage() {
             Estado:
             <select
               value={estado}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setEstado(e.target.value)
-              }
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => setEstado(e.target.value)}
               className="bg-zinc-800 text-xs text-white border border-zinc-600 px-2 py-1 rounded"
             >
               <option value="">Todos</option>
-              {estados.map((uf) => (
-                <option key={uf} value={uf}>
-                  {uf}
-                </option>
-              ))}
+              {/* idealmente você pode gerar os estados dinamicamente com base na API */}
+              <option value="SP">SP</option>
+              <option value="RJ">RJ</option>
             </select>
           </label>
 
@@ -115,9 +64,7 @@ export default function LeadsPage() {
             Ordenar por:
             <select
               value={order}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setOrder(e.target.value as any)
-              }
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => setOrder(e.target.value as any)}
               className="bg-zinc-800 text-xs text-white border border-zinc-600 px-2 py-1 rounded"
             >
               <option value="none">–</option>
@@ -143,7 +90,11 @@ export default function LeadsPage() {
             Buscar
           </button>
 
-          <FiltroDistribuidora />
+          <FiltroDistribuidora
+            distribuidoras={distribuidorasUnicas}
+            value={distribuidora}
+            onChange={setDistribuidora}
+          />
           <FiltroSegmento />
 
           <button
@@ -155,22 +106,29 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* botões de exportação futuramente devem usar leads server-side com filtros */}
       <div className="flex justify-end gap-2">
         <button
-          onClick={() => exportarParaExcel(rows, 'leads-filtrados.xlsx')}
+          onClick={() => alert('Exportação de filtrados ainda não implementada com server-side')}
           className="flex items-center gap-1 bg-blue-500 hover:bg-blue-400 text-white px-3 py-1 rounded text-xs"
         >
           <FileDown size={14} /> Exportar Filtrados
         </button>
         <button
-          onClick={() => exportarParaExcel(leads, 'leads-todos.xlsx')}
+          onClick={() => alert('Exportação de todos ainda não implementada com server-side')}
           className="flex items-center gap-1 bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs"
         >
           <Download size={14} /> Exportar Todos
         </button>
       </div>
 
-      <LeadsTable rows={rows} />
+      <LeadsTable
+        estado={estado}
+        distribuidora={distribuidora}
+        segmento={segmento}
+        busca={busca}
+        order={order}
+      />
     </section>
-  )
+  );
 }

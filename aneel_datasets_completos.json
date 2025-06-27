@@ -1,0 +1,74 @@
+[
+{
+  "titulo": "NOVA_PALMA - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/a421b11b53214feeb676f8cb24b8a3b4/about",
+  "id": "a421b11b53214feeb676f8cb24b8a3b4",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/a421b11b53214feeb676f8cb24b8a3b4/data"
+},
+{
+  "titulo": "NEOENERGIA_COELBA - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/3f9bf61730934ecf98ba418d9467e3a2/about",
+  "id": "3f9bf61730934ecf98ba418d9467e3a2",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/3f9bf61730934ecf98ba418d9467e3a2/data"
+},
+{
+  "titulo": "JOAO_CESA - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/fce4217c7ca9402cb6b62e4e79709f5c/about",
+  "id": "fce4217c7ca9402cb6b62e4e79709f5c",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/fce4217c7ca9402cb6b62e4e79709f5c/data"
+},
+{
+  "titulo": "ENERGISA_RO - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/bf4a36d98f5743c79a0ea0c16ee5f13d/about",
+  "id": "bf4a36d98f5743c79a0ea0c16ee5f13d",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/bf4a36d98f5743c79a0ea0c16ee5f13d/data"
+},
+{
+  "titulo": "ENERGISA_PB - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/ef3a85ef29f54f509142c31b26806013/about",
+  "id": "ef3a85ef29f54f509142c31b26806013",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/ef3a85ef29f54f509142c31b26806013/data"
+},
+{
+  "titulo": "ELETROCAR - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/6bc0fa7f94d34036a68d93f4568eecf3/about",
+  "id": "6bc0fa7f94d34036a68d93f4568eecf3",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/6bc0fa7f94d34036a68d93f4568eecf3/data"
+},
+{
+  "titulo": "EDP_SP - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/f5626b2568ee4e2abf7d94fb11fabc74/about",
+  "id": "f5626b2568ee4e2abf7d94fb11fabc74",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/f5626b2568ee4e2abf7d94fb11fabc74/data"
+},
+{
+  "titulo": "COPREL - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/fb60e58be1de498491a32a1abea065c6/about",
+  "id": "fb60e58be1de498491a32a1abea065c6",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/fb60e58be1de498491a32a1abea065c6/data"
+},
+{
+  "titulo": "COOPERSUL - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/7de0cd2cc852448c8e08cc4827a241b1/about",
+  "id": "7de0cd2cc852448c8e08cc4827a241b1",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/7de0cd2cc852448c8e08cc4827a241b1/data"
+},
+{
+  "titulo": "COOPERMILA - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/aa8d069efc134ac0833eea74b54f7702/about",
+  "id": "aa8d069efc134ac0833eea74b54f7702",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/aa8d069efc134ac0833eea74b54f7702/data"
+},
+{
+  "titulo": "COOPERCOCAL - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/c160a4483e1948b6a3f1b2a4b1fc1943/about",
+  "id": "c160a4483e1948b6a3f1b2a4b1fc1943",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/c160a4483e1948b6a3f1b2a4b1fc1943/data"
+},
+{
+  "titulo": "CHESP - 2023-12-31",
+  "url": "https://dadosabertos-aneel.opendata.arcgis.com/datasets/1eb28310f50c4fcbab8999f4a4bf6564/about",
+  "id": "1eb28310f50c4fcbab8999f4a4bf6564",
+  "download": "https://www.arcgis.com/sharing/rest/content/items/1eb28310f50c4fcbab8999f4a4bf6564/data"
+}
+]

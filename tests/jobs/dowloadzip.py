@@ -21,6 +21,7 @@ def gerar_link_zip(about_url: str) -> str:
     arcgis_id = parts[-2] if parts[-1] == "about" else parts[-1]
     return f"https://www.arcgis.com/sharing/rest/content/items/{arcgis_id}/data"
 
+
 def verificar_arquivo_existente(distribuidora: str, ano: int, pasta: Path) -> Path | None:
     for arquivo in pasta.glob("*.zip"):
         nome = arquivo.name.lower()

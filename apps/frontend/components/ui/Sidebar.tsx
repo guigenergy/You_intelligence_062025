@@ -65,10 +65,22 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* rodapé opcional (avatar etc.) ---------------------------------- */}
-      <div className="h-16 flex items-center justify-center">
-        {/* Ex.: avatar ou botão sair */}
+      <div className="border-t border-white/10 p-4">
+        {true && ( // Substitua por user?.role === 'admin'
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2 rounded-md transition hover:bg-white/5 text-gray-300 hover:text-white"
+          >
+            <Image
+              src="/icone-verde.png"
+              alt="Admin"
+              width={28}
+              height={28}
+              className="rounded-full border border-zinc-700"
+            />
+            <span className="truncate">Admin</span>
+          </Link>
+        )}
       </div>
     </aside>
   );
