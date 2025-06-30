@@ -13,7 +13,8 @@ export default function AdminPage() {
 
   return (
     <div className="bg-zinc-900 border border-zinc-700 text-white rounded-xl shadow p-6">
-      <h1 className="text-4xl font-bold text-center text-gray-800 mb-10">
+      <h1 className="text-4xl font-bold text-center text-white mb-10">
+
         📊 Painel de Administração de Dados
       </h1>
 
@@ -21,7 +22,7 @@ export default function AdminPage() {
 
       {/* Importação */}
       <section className="mb-10">
-        <div className="flex flex-wrap gap-6 items-end bg-white p-6 rounded-xl shadow border w-fit mb-8">
+        <div className="flex flex-wrap gap-6 items-end bg-zinc-900 border border-zinc-700 text-white p-6 rounded-xl shadow w-fit mb-8">
         <SelectDistribuidoras onChange={setDistribuidorasSelecionadas} />
         <SelectAnos onChange={setAnosSelecionados} />
         <ButtonImportar distribuidoras={distribuidorasSelecionadas} anos={anosSelecionados} />
