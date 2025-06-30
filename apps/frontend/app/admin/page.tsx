@@ -1,8 +1,43 @@
+'use client';
+
+import { useState } from 'react';
+import SelectDistribuidoras from './SelectDistribuidoras';
+import SelectAnos from './SelectAnos';
+import ButtonImportar from './ButtonImportar';
+import TabelaStatusImportacoes from './TabelaStatusImportacoes';
+import PainelEnriquecimento from './PainelEnriquecimento';
+
 export default function AdminPage() {
+  const [distribuidorasSelecionadas, setDistribuidorasSelecionadas] = useState<string[]>([]);
+  const [anosSelecionados, setAnosSelecionados] = useState<number[]>([]);
+
   return (
-    <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-      <p className="mt-2">Bem-vindo, admin!</p>
+    <div className="bg-zinc-900 border border-zinc-700 text-white rounded-xl shadow p-6">
+      <h1 className="text-4xl font-bold text-center text-gray-800 mb-10">
+        📊 Painel de Administração de Dados
+      </h1>
+
+
+
+      {/* Importação */}
+      <section className="mb-10">
+        <div className="flex flex-wrap gap-6 items-end bg-white p-6 rounded-xl shadow border w-fit mb-8">
+        <SelectDistribuidoras onChange={setDistribuidorasSelecionadas} />
+        <SelectAnos onChange={setAnosSelecionados} />
+        <ButtonImportar distribuidoras={distribuidorasSelecionadas} anos={anosSelecionados} />
+        </div>
+
+      </section>
+
+      {/* Status de importações */}
+      <section className="mb-10">
+        <TabelaStatusImportacoes />
+      </section>
+
+      {/* Enriquecimento */}
+      <section className="mb-10">
+        <PainelEnriquecimento />
+      </section>
     </div>
   );
 }
