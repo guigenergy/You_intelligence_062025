@@ -4,7 +4,7 @@ import io
 import time
 import uuid
 import pandas as pd
-import pyogrio
+import geopandas as gpd
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
@@ -33,7 +33,9 @@ def main(
     print(f"🚨 DEBUG MODE ({camada}): {modo_debug}")
 
     t0 = time.time()
-    df = pyogrio.read_dataframe(str(gdb_path), layer=camada, read_geometry=False)
+    print("📥 Lendo camada com geopandas (via Fiona)...")
+    df = gpd.read_file(gdb_path, layer=camada)
+    df = df.drop(columns="geometry", errors="ignore")
     print(f"📥 Lido {len(df)} linhas de {camada} em {time.time()-t0:.2f}s")
 
     # Transformações
@@ -80,7 +82,7 @@ def main(
     ene = _to_pg_array(df[[c for c in df.columns if c.startswith("ENE_")]].fillna(0).astype(int).values)
     dic = _to_pg_array(df[[c for c in df.columns if c.startswith("DIC_")]].fillna(0).astype(int).values)
     fic = _to_pg_array(df[[c for c in df.columns if c.startswith("FIC_")]].fillna(0).astype(int).values)
-    
+
     df_energia = pd.DataFrame({
         "id": df["uc_id"],
         "uc_id": df["uc_id"],
@@ -90,7 +92,7 @@ def main(
     df_demanda = pd.DataFrame({
         "id": df["uc_id"],
         "uc_id": df["uc_id"],
-        "dem_ponta": ["{}"] * len(df),  # sem dados de demanda no UCBT
+        "dem_ponta": ["{}"] * len(df),
         "dem_fora_ponta": ["{}"] * len(df)
     })
     df_qualidade = pd.DataFrame({
@@ -116,6 +118,7 @@ def main(
         df_novos = df_lead[~df_lead["id"].isin(existentes)]
 
         if not df_novos.empty:
+            print(f"📨 Inserindo {len(df_novos)} novos leads…")
             buf_lead = io.StringIO()
             df_novos[cols_lead].to_csv(buf_lead, index=False, header=False, na_rep='\\N')
             buf_lead.seek(0)
@@ -126,23 +129,30 @@ def main(
         else:
             print("⏩ Nenhum lead novo para importar")
 
-        # COPY UC
+        print(f"🚚 Inserindo {len(df_uc)} unidades consumidoras…")
         buf_uc = io.StringIO(); df_uc.to_csv(buf_uc, index=False, header=False, na_rep='\\N'); buf_uc.seek(0)
         cur.copy_expert(
             f"COPY {DB_SCHEMA}.unidade_consumidora ({','.join(df_uc.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
             buf_uc
         )
+        print("✅ UC inseridas com sucesso.")
 
-        # COPY energia, demanda e qualidade
         for table, df_tab in [
             (f"{DB_SCHEMA}.lead_energia", df_energia),
             (f"{DB_SCHEMA}.lead_demanda", df_demanda),
             (f"{DB_SCHEMA}.lead_qualidade", df_qualidade)
         ]:
+            print(f"🚀 Inserindo {len(df_tab)} registros em {table}...")
             buf_tab = io.StringIO(); df_tab.to_csv(buf_tab, index=False, header=False, na_rep='\\N'); buf_tab.seek(0)
-            cur.copy_expert(f"COPY {table} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", buf_tab)
+            try:
+                cur.copy_expert(
+                    f"COPY {table} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", 
+                    buf_tab
+                )
+                print(f"✅ Inserção concluída em {table}")
+            except Exception as e:
+                print(f"❌ Erro ao inserir em {table}: {e}")
 
-        # Status
         cur.execute(
             f"INSERT INTO {DB_SCHEMA}.import_status(distribuidora,ano,camada,status) "
             "VALUES(%s,%s,%s,'success') "
