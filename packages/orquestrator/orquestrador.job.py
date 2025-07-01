@@ -42,12 +42,15 @@ async def importar_distribuidora(distribuidora: str, prefixo: str, ano: int):
         print(f"\n🔄 Iniciando importação: {camada} | {distribuidora} {ano}")
         try:
             importer(
-                gdb_path=gdb,
-                distribuidora=distribuidora,
-                ano=ano,
-                camada=camada,
-                modo_debug=False
-            )
+    gdb_path=gdb,
+    distribuidora=distribuidora,
+    ano=ano,
+    prefixo=prefixo,
+    camada=camada,
+    modo_debug=False
+)
+
+
         except Exception:
             print(f"❌ Erro real ao importar {camada} para {distribuidora} {ano}:")
             traceback.print_exc()

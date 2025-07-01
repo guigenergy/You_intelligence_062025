@@ -1,3 +1,5 @@
+# File: packages/jobs/importers/importer_ponnot_job.py
+
 import os
 import json
 import geopandas as gpd
@@ -19,10 +21,11 @@ def main(
     gdb_path: Path,
     distribuidora: str,
     ano: int,
+    prefixo: str,                  # <— novo parâmetro
     camada: str = "PONNOT",
     modo_debug: bool = False
 ):
-    print(f"🚨 DEBUG MODE (PONNOT): {modo_debug}")
+    print(f"🚨 DEBUG MODE ({camada}): {modo_debug}")
     print(f"📍 Lendo camada {camada} da distribuidora {distribuidora} ({ano})")
 
     try:
