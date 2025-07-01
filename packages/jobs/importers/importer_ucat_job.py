@@ -1,4 +1,8 @@
-import os, io, time, hashlib, uuid
+import os
+import io
+import time
+import hashlib
+import uuid
 import pandas as pd
 import pyogrio
 from pathlib import Path
@@ -30,12 +34,12 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
          camada: str = "UCAT_tab", modo_debug: bool = False):
     print(f"🚨 DEBUG MODE ({camada}): {modo_debug}")
 
-    # 1) leitura sem geometria
+    # 1) Leitura sem geometria
     t0 = time.time()
     df = pyogrio.read_dataframe(str(gdb_path), layer=camada, read_geometry=False)
     print(f"📥 Lido {len(df)} linhas de {camada} em {time.time()-t0:.2f}s")
 
-    # 2) transformações
+    # 2) Transformações
     t1 = time.time()
     df["CEP"] = df["CEP"].astype(str).apply(normalizar_cep)
     df["id_interno"] = df.apply(
@@ -44,8 +48,8 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
     )
     df["uc_id"] = [str(uuid.uuid4()) for _ in range(len(df))]
 
-    # prepara lead
-    df_lead = df[["id_interno","CEP","BRR","MUN"]].drop_duplicates("id_interno").copy()
+    # Prepara lead
+    df_lead = df[["id_interno", "CEP", "BRR", "MUN"]].drop_duplicates("id_interno").copy()
     df_lead["id"] = df_lead["id_interno"]
     df_lead["bairro"] = df_lead["BRR"]
     df_lead["cep"] = df_lead["CEP"]
@@ -56,11 +60,11 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
     df_lead["ultima_atualizacao"] = [ts] * len(df_lead)
 
     cols_lead = [
-        "id","id_interno","bairro","cep",
-        "municipio_ibge","distribuidora","status","ultima_atualizacao"
+        "id", "id_interno", "bairro", "cep",
+        "municipio_ibge", "distribuidora", "status", "ultima_atualizacao"
     ]
 
-    # prepara unidade_consumidora
+    # Prepara unidade_consumidora
     df_uc = pd.DataFrame({
         "id": df["uc_id"],
         "cod_id": df["COD_ID"],
@@ -80,7 +84,7 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
         "potencia": df["PN_CON"].fillna(0).astype(float)
     })
 
-    # energia / demanda / qualidade
+    # Energia / Demanda / Qualidade
     ene   = _to_pg_array(df[[c for c in df.columns if c.startswith("ENE_")]].fillna(0).astype(int).values)
     dem_p = _to_pg_array(df[[c for c in df.columns if c.startswith("DEM_P_")]].fillna(0).astype(int).values)
     dem_f = _to_pg_array(df[[c for c in df.columns if c.startswith("DEM_F_")]].fillna(0).astype(int).values)
@@ -96,21 +100,39 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
         print(f"[DEBUG] leads={len(df_lead)}, uc={len(df_uc)}, energia={len(df_energia)}, demanda={len(df_demanda)}, qual={len(df_qualidade)}")
         return
 
-    # 3) carga
+    # 3) Carga otimizada com filtragem de duplicados
     t2 = time.time()
     with get_db_cursor(commit=True) as cur:
-        # upsert lead (ON CONFLICT DO NOTHING)
-        sql = (
-            f"INSERT INTO {DB_SCHEMA}.lead ({','.join(cols_lead)}) "
-            f"VALUES ({','.join(['%s']*len(cols_lead))}) ON CONFLICT(id) DO NOTHING"
+        # ▶▶▶ Filtra leads já existentes (tupla ou dict)
+        cur.execute(
+            f"SELECT id FROM {DB_SCHEMA}.lead WHERE id = ANY(%s)",
+            (df_lead["id"].tolist(),)
         )
-        cur.executemany(sql, list(df_lead[cols_lead].itertuples(index=False, name=None)))
+        rows = cur.fetchall()
+        existentes = {
+            (r["id"] if isinstance(r, dict) else r[0])
+            for r in rows
+        }
+        df_novos = df_lead[~df_lead["id"].isin(existentes)]
+        if not df_novos.empty:
+            buf_lead = io.StringIO()
+            df_novos[cols_lead].to_csv(buf_lead, index=False, header=False, na_rep='\\N')
+            buf_lead.seek(0)
+            cur.copy_expert(
+                f"COPY {DB_SCHEMA}.lead ({','.join(cols_lead)}) "
+                "FROM STDIN WITH (FORMAT csv, NULL '\\N')",
+                buf_lead
+            )
+        else:
+            print("⏩ Nenhum lead novo para importar")
 
         # COPY unidade_consumidora
-        buf = io.StringIO(); df_uc.to_csv(buf, index=False, header=False, na_rep=r"\N"); buf.seek(0)
+        buf_uc = io.StringIO()
+        df_uc.to_csv(buf_uc, index=False, header=False, na_rep='\\N')
+        buf_uc.seek(0)
         cur.copy_expert(
             f"COPY {DB_SCHEMA}.unidade_consumidora ({','.join(df_uc.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
-            buf
+            buf_uc
         )
 
         # COPY energia / demanda / qualidade
@@ -119,10 +141,15 @@ def main(gdb_path: Path, distribuidora: str, ano: int,
             (f"{DB_SCHEMA}.lead_demanda",   df_demanda),
             (f"{DB_SCHEMA}.lead_qualidade", df_qualidade)
         ]:
-            buf = io.StringIO(); df_tab.to_csv(buf, index=False, header=False, na_rep=r"\N"); buf.seek(0)
-            cur.copy_expert(f"COPY {table} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", buf)
+            buf_tab = io.StringIO()
+            df_tab.to_csv(buf_tab, index=False, header=False, na_rep='\\N')
+            buf_tab.seek(0)
+            cur.copy_expert(
+                f"COPY {table} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
+                buf_tab
+            )
 
-        # status
+        # Atualiza status
         cur.execute(f"""
             INSERT INTO {DB_SCHEMA}.import_status(distribuidora,ano,camada,status)
             VALUES(%s,%s,%s,'success')
