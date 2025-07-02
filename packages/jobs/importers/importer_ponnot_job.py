@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import os
 import json
+import logging
 import fiona
 import geopandas as gpd
 from fiona import listlayers
 from pathlib import Path
 from sqlalchemy import create_engine, text, bindparam
-from sqlalchemy.exc import ProgrammingError
 from dotenv import load_dotenv
 from datetime import datetime
 from tqdm import tqdm
@@ -15,12 +15,13 @@ import shapely.geometry as geom
 load_dotenv()
 DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
 
-# Configura conexão
+# Configura conexão (sem echo e sem logs de binds)
 conn_str = (
     f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@"
     f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}?sslmode=require"
 )
-engine = create_engine(conn_str)
+engine = create_engine(conn_str, echo=False)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
 
 
 def carregar_geometria_com_progresso(gdb_path: Path, layer: str):
@@ -80,9 +81,8 @@ def main(
     # 4) Extração de coordenadas
     print("🔎 Extraindo coordenadas...")
     inicio_ext = datetime.now()
-    total = len(gdf)
     coords = []
-    for row in tqdm(gdf.itertuples(index=False), total=total, desc="Extraindo coord", ncols=80):
+    for row in tqdm(gdf.itertuples(index=False), total=len(gdf), desc="Extraindo coord", ncols=80):
         coords.append(json.dumps({'lat': row.geometry.y, 'lng': row.geometry.x}))
     gdf['coordenadas'] = coords
     print(f"✅ Extração concluída em {(datetime.now() - inicio_ext).total_seconds():.2f}s")
@@ -104,15 +104,15 @@ def main(
         except Exception as e:
             print(f"⚠️ Falha ao garantir coluna: {e}")
 
-    # 6) UPDATE em lote usando expanding binds
-    print("🚀 Atualizando coordenadas no banco (expanding binds)...")
+    # 6) UPDATE em lote usando expanding binds + ARRAY[:]
+    print("🚀 Atualizando coordenadas no banco (expanding binds + ARRAY)...")
     stmt = text(f"""
         UPDATE {DB_SCHEMA}.unidade_consumidora AS u
         SET coordenadas = v.coordenadas
         FROM (
           SELECT
-            UNNEST(:cod_ids::bigint[])   AS cod_id,
-            UNNEST(:coords::text[])       AS coordenadas
+            UNNEST(ARRAY[:cod_ids])   AS cod_id,
+            UNNEST(ARRAY[:coords])    AS coordenadas
         ) AS v
         WHERE u.cod_id = v.cod_id
           AND (u.coordenadas IS NULL OR u.coordenadas = '{{}}')
@@ -121,13 +121,17 @@ def main(
         bindparam('coords', expanding=True)
     )
 
-    # Prepara arrays para o expanding
     cod_ids, coord_vals = zip(*[(row.COD_ID, row.coordenadas) for row in gdf.itertuples(index=False)])
     inicio_db = datetime.now()
-    with engine.begin() as conn:
-        conn.execute(stmt, {'cod_ids': cod_ids, 'coords': coord_vals})
-    dur_db = (datetime.now() - inicio_db).total_seconds()
-    print(f"✅ UPDATE concluído em {dur_db:.2f}s")
+    try:
+        with engine.begin() as conn:
+            conn.execute(stmt, {'cod_ids': list(cod_ids), 'coords': list(coord_vals)})
+        print(f"✅ UPDATE concluído em {(datetime.now() - inicio_db).total_seconds():.2f}s")
+    except Exception:
+        import traceback
+        print("❌ Erro no UPDATE em lote:")
+        traceback.print_exc()
+        return
 
     # 7) Conclusão
     print(f"📤 PONNOT finalizado para {distribuidora} ({ano})")
