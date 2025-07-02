@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
 import sys
 import asyncio
-import traceback
 from pathlib import Path
 
 # Adiciona o root do projeto para os imports funcionarem
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-# from packages.jobs.importers.importer_ucat_job import main as importar_ucat
-# from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
+from packages.jobs.importers.importer_ucat_job import main as importar_ucat
+from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
 from packages.jobs.importers.importer_ucbt_job import main as importar_ucbt
 from packages.jobs.importers.importer_ponnot_job import main as importar_ponnot
 
 # Diretório onde os arquivos GDB descompactados são salvos
 GDB_DIR = Path("data/downloads")
 
-# Mapeia cada camada ao seu importer
+# Dicionário com os importadores por camada
 BASES = {
-    # "UCAT_tab": importar_ucat,
-    # "UCMT_tab": importar_ucmt,
+    "UCAT_tab": importar_ucat,
+    "UCMT_tab": importar_ucmt,
     "UCBT_tab": importar_ucbt,
-    "PONNOT":   importar_ponnot,
+    "PONNOT": importar_ponnot,
 }
-
 
 def encontrar_gdb(prefixo: str, ano: int) -> Path | None:
     """
@@ -31,47 +29,30 @@ def encontrar_gdb(prefixo: str, ano: int) -> Path | None:
     candidatos = list(GDB_DIR.glob(f"{prefixo}_{ano}*.gdb"))
     return candidatos[0] if candidatos else None
 
-
-async def importar_distribuidora(distribuidora: str, prefixo: str, ano: int):
-    gdb = encontrar_gdb(prefixo, ano)
-    if not gdb:
-        print(f"⚠️  GDB não encontrado para {distribuidora} {ano}")
-        return
-
-    for camada, importer in BASES.items():
-        print(f"\n🔄 Iniciando importação: {camada} | {distribuidora} {ano}")
-        try:
-            importer(
-    gdb_path=gdb,
-    distribuidora=distribuidora,
-    ano=ano,
-    prefixo=prefixo,
-    camada=camada,
-    modo_debug=False
-)
-
-
-        except Exception:
-            print(f"❌ Erro real ao importar {camada} para {distribuidora} {ano}:")
-            traceback.print_exc()
-
-
-async def rodar_orquestrador(selecionados: list[dict]):
-    """
-    Recebe lista de dicts:
-    [
-      {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383", "ano": 2023},
-      ...
+async def main():
+    distribuidoras = [
+        "ENEL DISTRIBUIÇÃO RIO",
+        "CPFL PAULISTA",
+        "CEMIG DISTRIBUIÇÃO",
+        # adicionar mais distribuidoras conforme necessário
     ]
-    """
-    for item in selecionados:
-        await importar_distribuidora(item["nome"], item["prefixo"], item["ano"])
+    anos = [2020, 2021, 2022, 2023]
 
+    for dist in distribuidoras:
+        for ano in anos:
+            prefixo = dist.replace(" ", "_")
+            gdb_path = encontrar_gdb(prefixo, ano)
+
+            if not gdb_path:
+                print(f"\n⚠️  GDB não encontrado para {dist} {ano}\n")
+                continue
+
+            for camada, job in BASES.items():
+                print(f"\n🔄 Iniciando importação: {camada} | {dist} {ano}")
+                try:
+                    await job(gdb_path=str(gdb_path), distribuidora=dist, ano=ano)
+                except Exception as e:
+                    print(f"❌ Erro real ao importar {camada} para {dist} {ano}:\n{e}")
 
 if __name__ == "__main__":
-    # exemplo local
-    DISTRIBUIDORAS = [
-        {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383", "ano": 2023},
-        {"nome": "CPFL PAULISTA",         "prefixo": "CPFL_Paulista_63", "ano": 2023},
-    ]
-    asyncio.run(rodar_orquestrador(DISTRIBUIDORAS))
+    asyncio.run(main())
