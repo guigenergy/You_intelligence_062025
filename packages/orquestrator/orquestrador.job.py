@@ -7,8 +7,8 @@ from pathlib import Path
 # Adiciona o root do projeto para os imports funcionarem
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from packages.jobs.importers.importer_ucat_job import main as importar_ucat
-from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
+# from packages.jobs.importers.importer_ucat_job import main as importar_ucat
+# from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
 from packages.jobs.importers.importer_ucbt_job import main as importar_ucbt
 from packages.jobs.importers.importer_ponnot_job import main as importar_ponnot
 
@@ -17,8 +17,8 @@ GDB_DIR = Path("data/downloads")
 
 # Mapeia cada camada ao seu importer
 BASES = {
-    "UCAT_tab": importar_ucat,
-    "UCMT_tab": importar_ucmt,
+    # "UCAT_tab": importar_ucat,
+    # "UCMT_tab": importar_ucmt,
     "UCBT_tab": importar_ucbt,
     "PONNOT":   importar_ponnot,
 }
@@ -71,7 +71,7 @@ async def rodar_orquestrador(selecionados: list[dict]):
 if __name__ == "__main__":
     # exemplo local
     DISTRIBUIDORAS = [
-        {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383", "ano": 2023},
+        # {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383", "ano": 2023},
         {"nome": "CPFL PAULISTA",         "prefixo": "CPFL_Paulista_63", "ano": 2023},
     ]
     asyncio.run(rodar_orquestrador(DISTRIBUIDORAS))
