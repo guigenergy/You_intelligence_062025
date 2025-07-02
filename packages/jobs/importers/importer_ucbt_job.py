@@ -25,6 +25,20 @@ def _to_pg_array(data):
 def normalizar_cep(cep):
     return ''.join(filter(str.isdigit, str(cep)))[:8] if cep else ""
 
+def chunked_copy(cur, df: pd.DataFrame, table: str, cols: list[str]):
+    """Realiza COPY em chunks para não sobrecarregar."""
+    total = len(df)
+    for start in range(0, total, CHUNK_SIZE):
+        end = min(start + CHUNK_SIZE, total)
+        print(f"   - Copiando linhas {start} a {end} em {table}", flush=True)
+        buf = io.StringIO()
+        df.iloc[start:end][cols].to_csv(buf, index=False, header=False, na_rep='\\N')
+        buf.seek(0)
+        cur.copy_expert(
+            f"COPY {table} ({','.join(cols)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
+            buf
+        )
+
 def carregar_com_progresso_stream(gdb_path: Path, layer: str, chunk_size: int = CHUNK_SIZE):
     """
     Generator que carrega feições em chunks e retorna DataFrames parciais.
@@ -84,7 +98,7 @@ def process_chunk(df: pd.DataFrame, distribuidora: str, ano: int, prefixo: str, 
         "subestacao": df.get("SUB"),
         "cnae": df.get("CNAE"),
         "descricao": df.get("DESCR"),
-        # Converte PN_CON com coerção de erros, strings viram NaN e depois 0.0
+        # Converte PN_CON em float com coerção
         "potencia": pd.to_numeric(df.get("PN_CON"), errors="coerce").fillna(0.0)
     })
     cols_uc = list(df_uc.columns)
@@ -102,31 +116,36 @@ def process_chunk(df: pd.DataFrame, distribuidora: str, ano: int, prefixo: str, 
     cols_demanda = list(df_demanda.columns)
     cols_qualidade = list(df_qualidade.columns)
 
-    # inserções
+    # inserções no banco
     cur.execute(f"SELECT id FROM {DB_SCHEMA}.lead WHERE id = ANY(%s)", (df_lead['id'].tolist(),))
     existing_leads = {r[0] for r in cur.fetchall()}
     new_leads = df_lead[~df_lead['id'].isin(existing_leads)]
-    if len(new_leads): chunked_copy(cur, new_leads, f"{DB_SCHEMA}.lead", cols_lead)
+    if new_leads.size:
+        chunked_copy(cur, new_leads, f"{DB_SCHEMA}.lead", cols_lead)
 
     cur.execute(f"SELECT cod_id FROM {DB_SCHEMA}.unidade_consumidora WHERE cod_id = ANY(%s)", (df_uc['cod_id'].tolist(),))
     existing_uc = {r[0] for r in cur.fetchall()}
     new_uc = df_uc[~df_uc['cod_id'].isin(existing_uc)]
-    if len(new_uc): chunked_copy(cur, new_uc, f"{DB_SCHEMA}.unidade_consumidora", cols_uc)
+    if new_uc.size:
+        chunked_copy(cur, new_uc, f"{DB_SCHEMA}.unidade_consumidora", cols_uc)
 
     cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_energia WHERE uc_id = ANY(%s)", (df_energia['uc_id'].tolist(),))
     existing_eng = {r[0] for r in cur.fetchall()}
     new_eng = df_energia[~df_energia['uc_id'].isin(existing_eng)]
-    if len(new_eng): chunked_copy(cur, new_eng, f"{DB_SCHEMA}.lead_energia", cols_energia)
+    if new_eng.size:
+        chunked_copy(cur, new_eng, f"{DB_SCHEMA}.lead_energia", cols_energia)
 
     cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_demanda WHERE uc_id = ANY(%s)", (df_demanda['uc_id'].tolist(),))
     existing_dem = {r[0] for r in cur.fetchall()}
     new_dem = df_demanda[~df_demanda['uc_id'].isin(existing_dem)]
-    if len(new_dem): chunked_copy(cur, new_dem, f"{DB_SCHEMA}.lead_demanda", cols_demanda)
+    if new_dem.size:
+        chunked_copy(cur, new_dem, f"{DB_SCHEMA}.lead_demanda", cols_demanda)
 
     cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_qualidade WHERE uc_id = ANY(%s)", (df_qualidade['uc_id'].tolist(),))
     existing_qual = {r[0] for r in cur.fetchall()}
     new_qual = df_qualidade[~df_qualidade['uc_id'].isin(existing_qual)]
-    if len(new_qual): chunked_copy(cur, new_qual, f"{DB_SCHEMA}.lead_qualidade", cols_qualidade)
+    if new_qual.size:
+        chunked_copy(cur, new_qual, f"{DB_SCHEMA}.lead_qualidade", cols_qualidade)
 
 
 def main(

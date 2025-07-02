@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
 from packages.jobs.importers.importer_ucbt_job import main as importar_ucbt
 # from packages.jobs.importers.importer_ponnot_job import main as importar_ponnot
+from packages.jobs.importers.importer_ponnot_job import main as importar_ponnot
+
 
 # Diretório onde os arquivos GDB descompactados são salvos
 GDB_DIR = Path("data/downloads")
@@ -20,7 +22,9 @@ BASES = {
     # "UCAT_tab": importar_ucat,
     # "UCMT_tab": importar_ucmt,
     "UCBT_tab": importar_ucbt,
+
     # "PONNOT":   importar_ponnot,
+    "PONNOT":   importar_ponnot,
 }
 
 
