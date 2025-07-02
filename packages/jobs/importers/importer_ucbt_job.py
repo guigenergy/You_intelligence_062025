@@ -9,6 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
 from tqdm import tqdm
+import time
 from packages.database.connection import get_db_cursor
 
 load_dotenv()
