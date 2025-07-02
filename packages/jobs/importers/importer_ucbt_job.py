@@ -15,14 +15,18 @@ from packages.database.connection import get_db_cursor
 load_dotenv()
 DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
 
+CHUNK_SIZE = 500_000
+
 def _to_pg_array(data):
     return pd.Series([
         "{" + ",".join(map(str, row)) + "}" if len(row) else "{}"
         for row in data
     ])
 
+
 def normalizar_cep(cep):
     return ''.join(filter(str.isdigit, str(cep)))[:8] if cep else ""
+
 
 def carregar_com_progresso(gdb_path: Path, layer: str) -> pd.DataFrame:
     """
@@ -37,6 +41,21 @@ def carregar_com_progresso(gdb_path: Path, layer: str) -> pd.DataFrame:
     return pd.DataFrame(props)
 
 
+def chunked_copy(cur, df: pd.DataFrame, table: str, cols: list[str]):
+    """Realiza COPY em chunks para não sobrecarregar."""
+    total = len(df)
+    for start in range(0, total, CHUNK_SIZE):
+        end = min(start + CHUNK_SIZE, total)
+        print(f"   - Copiando linhas {start} a {end} em {table}")
+        buf = io.StringIO()
+        df.iloc[start:end][cols].to_csv(buf, index=False, header=False, na_rep='\\N')
+        buf.seek(0)
+        cur.copy_expert(
+            f"COPY {table} ({','.join(cols)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
+            buf
+        )
+
+
 def main(
     gdb_path: Path,
     distribuidora: str,
@@ -48,124 +67,122 @@ def main(
     print(f"🔄 Iniciando importação: {camada} | {distribuidora} {ano}")
     print(f"🚨 DEBUG MODE: {modo_debug}")
 
-    # 1) Leitura com progresso visual
+    # 1) leitura
     if camada not in listlayers(str(gdb_path)):
         print(f"❌ Camada '{camada}' não encontrada em {gdb_path}")
         return
     start = datetime.now()
-    try:
-        df = carregar_com_progresso(gdb_path, camada)
-    except Exception as e:
-        print(f"❌ Erro ao ler camada: {e}")
-        return
-    elapsed = (datetime.now() - start).total_seconds()
-    print(f"📥 Leitura concluída: {len(df)} linhas em {elapsed:.2f}s")
+    df = carregar_com_progresso(gdb_path, camada)
+    print(f"📥 Leitura concluída: {len(df)} linhas em {(datetime.now() - start).total_seconds():.2f}s")
 
-    # 2) Transformações com rastreio
-    print("🛠️ Iniciando transformações...")
-    start_t = datetime.now()
-    total = len(df)
-    df['CEP'] = df.get('CEP', '').astype(str).apply(normalizar_cep)
-    print(f"   - CEP normalizados (total {total})")
-    df['id_interno'] = prefixo + '_' + df.get('COD_ID', '').astype(str)
-    print(f"   - id_interno gerados (total {total})")
-    df['uc_id'] = [str(uuid.uuid4()) for _ in range(total)]
-    print(f"   - uc_id gerados (total {total})")
-    print(f"✅ Transformações concluídas em {(datetime.now() - start_t).total_seconds():.2f}s")
-
+    # 2) transformações
+    print("🛠️ Aplicando transformações...")
+    t0 = datetime.now()
+    df["CEP"] = df.get("CEP", "").astype(str).apply(normalizar_cep)
+    df["id_interno"] = prefixo + "_" + df.get("COD_ID", "").astype(str) + "_" + str(ano)
+    df["uc_id"] = [str(uuid.uuid4()) for _ in range(len(df))]
+    print(f"✅ Transformações concluídas em {(datetime.now() - t0).total_seconds():.2f}s")
     if modo_debug:
         print(df.head())
         return
 
-    # 3) Preparação de lead com contagem
-    print("🔎 Preparando DataFrame de lead...")
+    # 3) preparar leads
     df_lead = (
-        df[['id_interno','CEP','BRR','MUN']]
-        .drop_duplicates('id_interno')
-        .rename(columns={'BRR':'bairro','MUN':'municipio_ibge','CEP':'cep'})
-        .copy()
+        df[["id_interno","CEP","BRR","MUN"]]
+        .drop_duplicates("id_interno")
+        .rename(columns={"BRR":"bairro","MUN":"municipio_ibge","CEP":"cep"})
     )
-    df_lead['id'] = df_lead['id_interno']
-    df_lead['distribuidora'] = distribuidora
-    df_lead['status'] = 'raw'
-    df_lead['ultima_atualizacao'] = datetime.utcnow()
-    print(f"   - Leads únicos: {len(df_lead)}")
-    cols_lead = [
-        'id','id_interno','bairro','cep',
-        'municipio_ibge','distribuidora','status','ultima_atualizacao'
-    ]
+    df_lead["id"] = df_lead["id_interno"]
+    df_lead["distribuidora"] = distribuidora
+    df_lead["status"] = "raw"
+    df_lead["ultima_atualizacao"] = datetime.utcnow()
+    cols_lead = ["id","id_interno","bairro","cep","municipio_ibge","distribuidora","status","ultima_atualizacao"]
+    print(f"🔎 Leads únicos: {len(df_lead)}")
 
-    # 4) Preparação de unidade consumidora
-    print("🔎 Preparando DataFrame de unidade consumidora...")
+    # 4) preparar unidade consumidora
     df_uc = pd.DataFrame({
-        'id': df['uc_id'],
-        'cod_id': df.get('COD_ID'),
-        'lead_id': df['id_interno'],
-        'origem': camada,
-        'ano': ano,
-        'data_conexao': pd.to_datetime(df.get('DAT_CON'), errors='coerce'),
-        'tipo_sistema': df.get('TIP_SIST'),
-        'grupo_tensao': df.get('GRU_TEN'),
-        'modalidade': df.get('GRU_TAR'),
-        'situacao': df.get('SIT_ATIV'),
-        'classe': df.get('CLAS_SUB'),
-        'segmento': df.get('CONJ'),
-        'subestacao': df.get('SUB'),
-        'cnae': df.get('CNAE'),
-        'descricao': df.get('DESCR'),
-        'potencia': df.get('PN_CON').fillna(0).astype(float)
+        "id": df["uc_id"],
+        "cod_id": df.get("COD_ID"),
+        "lead_id": df["id_interno"],
+        "origem": camada,
+        "ano": ano,
+        "data_conexao": pd.to_datetime(df.get("DAT_CON"), errors="coerce"),
+        "tipo_sistema": df.get("TIP_SIST"),
+        "grupo_tensao": df.get("GRU_TEN"),
+        "modalidade": df.get("GRU_TAR"),
+        "situacao": df.get("SIT_ATIV"),
+        "classe": df.get("CLAS_SUB"),
+        "segmento": df.get("CONJ"),
+        "subestacao": df.get("SUB"),
+        "cnae": df.get("CNAE"),
+        "descricao": df.get("DESCR"),
+        "potencia": df.get("PN_CON").fillna(0).astype(float)
     })
-    print(f"   - Unidades consumidoras: {len(df_uc)}")
+    cols_uc = list(df_uc.columns)
+    print(f"🔎 UC total: {len(df_uc)}")
 
-    # 5) Séries temporais
-    print("🔎 Preparando DataFrames de séries temporais...")
-    ene_cols = [c for c in df.columns if c.startswith('ENE_')]
-    dem_p_cols = [c for c in df.columns if c.startswith('DEM_P_')]
-    dem_f_cols = [c for c in df.columns if c.startswith('DEM_F_')]
-    dic_cols = [c for c in df.columns if c.startswith('DIC_')]
-    fic_cols = [c for c in df.columns if c.startswith('FIC_')]
-    df_energia = pd.DataFrame({
-        'id': df['uc_id'], 'uc_id': df['uc_id'],
-        'ene': _to_pg_array(df[ene_cols].fillna(0).astype(int).values)
-    })
-    df_demanda = pd.DataFrame({
-        'id': df['uc_id'], 'uc_id': df['uc_id'],
-        'dem_ponta': _to_pg_array(df[dem_p_cols].fillna(0).astype(int).values),
-        'dem_fora_ponta': _to_pg_array(df[dem_f_cols].fillna(0).astype(int).values)
-    })
-    df_qualidade = pd.DataFrame({
-        'id': df['uc_id'], 'uc_id': df['uc_id'],
-        'dic': _to_pg_array(df[dic_cols].fillna(0).astype(int).values),
-        'fic': _to_pg_array(df[fic_cols].fillna(0).astype(int).values)
-    })
-    print(f"   - Energia: {len(df_energia)}, Demanda: {len(df_demanda)}, Qualidade: {len(df_qualidade)}")
+    # 5) preparar séries
+    ene = df[[c for c in df.columns if c.startswith("ENE_")]].fillna(0).astype(int).values
+    dem_p = df[[c for c in df.columns if c.startswith("DEM_P_")]].fillna(0).astype(int).values
+    dem_f = df[[c for c in df.columns if c.startswith("DEM_F_")]].fillna(0).astype(int).values
+    dic = df[[c for c in df.columns if c.startswith("DIC_")]].fillna(0).astype(int).values
+    fic = df[[c for c in df.columns if c.startswith("FIC_")]].fillna(0).astype(int).values
+    df_energia = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "ene": _to_pg_array(ene)})
+    df_demanda = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "dem_ponta": _to_pg_array(dem_p), "dem_fora_ponta": _to_pg_array(dem_f)})
+    df_qualidade = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "dic": _to_pg_array(dic), "fic": _to_pg_array(fic)})
+    cols_energia = list(df_energia.columns)
+    cols_demanda = list(df_demanda.columns)
+    cols_qualidade = list(df_qualidade.columns)
+    print(f"🔎 Séries: energia={len(df_energia)}, demanda={len(df_demanda)}, qualidade={len(df_qualidade)}")
 
-    # 6) Carga otimizada com logs
-    print("🚀 Iniciando carga no banco...")
-    t2 = time.time()
+    # 6) carga otimizada com chunk + select para evitar duplicados
+    print("🚀 Iniciando carga no banco…")
+    t0 = time.time()
     with get_db_cursor(commit=True) as cur:
-        # lead
+        # filtrar leads
         cur.execute(f"SELECT id FROM {DB_SCHEMA}.lead WHERE id = ANY(%s)", (df_lead['id'].tolist(),))
-        existentes = {row[0] for row in cur.fetchall()}
-        df_novos = df_lead[~df_lead['id'].isin(existentes)]
-        print(f"   - Leads para inserir: {len(df_novos)}")
-        if len(df_novos):
-            buf = io.StringIO(); df_novos[cols_lead].to_csv(buf, index=False, header=False, na_rep='\\N'); buf.seek(0)
-            cur.copy_expert(f"COPY {DB_SCHEMA}.lead ({','.join(cols_lead)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", buf)
+        existing_leads = {r[0] for r in cur.fetchall()}
+        new_leads = df_lead[~df_lead['id'].isin(existing_leads)]
+        print(f"   - Leads para inserir: {len(new_leads)}")
+        if len(new_leads):
+            chunked_copy(cur, new_leads, f"{DB_SCHEMA}.lead", cols_lead)
 
-        # unidade_consumidora
-        print(f"   - Unidades consumidoras para inserir: {len(df_uc)}")
-        buf_uc = io.StringIO(); df_uc.to_csv(buf_uc, index=False, header=False, na_rep='\\N'); buf_uc.seek(0)
-        cur.copy_expert(f"COPY {DB_SCHEMA}.unidade_consumidora ({','.join(df_uc.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", buf_uc)
+        # filtrar uc
+        cur.execute(f"SELECT cod_id FROM {DB_SCHEMA}.unidade_consumidora WHERE cod_id = ANY(%s)", (df_uc['cod_id'].tolist(),))
+        existing_uc = {r[0] for r in cur.fetchall()}
+        new_uc = df_uc[~df_uc['cod_id'].isin(existing_uc)]
+        print(f"   - UC para inserir: {len(new_uc)}")
+        if len(new_uc):
+            chunked_copy(cur, new_uc, f"{DB_SCHEMA}.unidade_consumidora", cols_uc)
 
-        # series
-        for name, df_tab in [('energia', df_energia), ('demanda', df_demanda), ('qualidade', df_qualidade)]:
-            print(f"   - {name.capitalize()} para inserir: {len(df_tab)}")
-            buf_tab = io.StringIO(); df_tab.to_csv(buf_tab, index=False, header=False, na_rep='\\N'); buf_tab.seek(0)
-            cur.copy_expert(f"COPY {DB_SCHEMA}.lead_{name} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')", buf_tab)
+        # filtrar energia
+        cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_energia WHERE uc_id = ANY(%s)", (df_energia['uc_id'].tolist(),))
+        existing_eng = {r[0] for r in cur.fetchall()}
+        new_eng = df_energia[~df_energia['uc_id'].isin(existing_eng)]
+        print(f"   - Energia para inserir: {len(new_eng)}")
+        if len(new_eng):
+            chunked_copy(cur, new_eng, f"{DB_SCHEMA}.lead_energia", cols_energia)
 
+        # filtrar demanda
+        cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_demanda WHERE uc_id = ANY(%s)", (df_demanda['uc_id'].tolist(),))
+        existing_dem = {r[0] for r in cur.fetchall()}
+        new_dem = df_demanda[~df_demanda['uc_id'].isin(existing_dem)]
+        print(f"   - Demanda para inserir: {len(new_dem)}")
+        if len(new_dem):
+            chunked_copy(cur, new_dem, f"{DB_SCHEMA}.lead_demanda", cols_demanda)
+
+        # filtrar qualidade
+        cur.execute(f"SELECT uc_id FROM {DB_SCHEMA}.lead_qualidade WHERE uc_id = ANY(%s)", (df_qualidade['uc_id'].tolist(),))
+        existing_qual = {r[0] for r in cur.fetchall()}
+        new_qual = df_qualidade[~df_qualidade['uc_id'].isin(existing_qual)]
+        print(f"   - Qualidade para inserir: {len(new_qual)}")
+        if len(new_qual):
+            chunked_copy(cur, new_qual, f"{DB_SCHEMA}.lead_qualidade", cols_qualidade)
+
+        # status
         cur.execute(
-            f"INSERT INTO {DB_SCHEMA}.import_status(distribuidora,ano,camada,status) VALUES(%s,%s,%s,'success') ON CONFLICT(distribuidora,ano,camada) DO UPDATE SET status=EXCLUDED.status,data_execucao=now()",
+            f"INSERT INTO {DB_SCHEMA}.import_status(distribuidora,ano,camada,status)"
+            " VALUES(%s,%s,%s,'success') ON CONFLICT(distribuidora,ano,camada) DO UPDATE SET status=EXCLUDED.status,data_execucao=now()",
             (distribuidora, ano, camada)
         )
-    print(f"📤 Carga finalizada em {time.time() - t2:.2f}s — {camada} importado com sucesso!")
+    print(f"📤 Carga finalizada em {time.time() - t0:.2f}s — {camada} importado com sucesso!")
