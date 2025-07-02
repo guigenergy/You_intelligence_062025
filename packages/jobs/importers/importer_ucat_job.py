@@ -1,152 +1,153 @@
-import os
-import io
-import time
-import uuid
+import geopandas as gpd
 import pandas as pd
-import pyogrio
+import psycopg2
+import io
+from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime
-from packages.database.connection import get_db_cursor
+import os
 
 load_dotenv()
-DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
 
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_PORT = os.getenv("DB_PORT")
 
+TABELA_BRUTA = "lead.lead_bruto"
+TABELA_ENERGIA = "lead.lead_energia"
+TABELA_DEMANDA = "lead.lead_demanda"
+TABELA_STATUS = "lead.import_status"
 
 def _to_pg_array(data):
     return pd.Series([
-        "{" + ",".join(map(str, row)) + "}" if len(row) else "{}"
+        "{" + ",".join(map(str, row)) + "}" if len(row) > 0 else r"\N"
         for row in data
     ])
 
+def registrar_status(conn, distribuidora, ano, camada, status):
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            INSERT INTO {TABELA_STATUS} (distribuidora, ano, camada, status, data_execucao)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (distribuidora, ano) DO UPDATE
+            SET status = EXCLUDED.status, data_execucao = EXCLUDED.data_execucao
+        """, (distribuidora, ano, camada, status, datetime.now()))
+        conn.commit()
 
+async def main(gdb_path: str, distribuidora: str, ano: int, modo_debug: bool = False):
+    print(f"🚨 DEBUG MODE (UCAT): {modo_debug}")
 
+    camada = "UCAT_tab"
+    registrar_status(psycopg2.connect(
+        host=DB_HOST, dbname=DB_NAME, user=DB_USER,
+        password=DB_PASS, port=DB_PORT, sslmode="require"
+    ), distribuidora, ano, camada, "iniciando")
 
-def normalizar_cep(cep):
-    return ''.join(filter(str.isdigit, str(cep)))[:8] if cep else ""
+    gdf = gpd.read_file(gdb_path, layer=camada, encoding="utf-8")
+    print(f"📥 Lido {len(gdf)} linhas de {camada}")
 
+    # Normaliza os campos
+    df = pd.DataFrame(gdf)
 
-def main(
-    gdb_path: Path,
-    distribuidora: str,
-    ano: int,
-    prefixo: str,                  # <— adicionado
-    camada: str = "UCAT_tab",
-    modo_debug: bool = False
-):
-    print(f"🚨 DEBUG MODE ({camada}): {modo_debug}")
+    df["cod_id"] = df["COD_ID"].astype("Int64")
+    df["cod_distribuidora"] = int(distribuidora.split()[0])  # Assuma código no início
+    df["origem"] = "UCAT"
+    df["ano"] = ano
+    df["status"] = "raw"
+    df["data_conexao"] = pd.to_datetime(df["DAT_CON"], errors="coerce").dt.date
+    df["cnae"] = df["CNAE"].astype(str)
+    df["grupo_tensao"] = df["GRU_TEN"]
+    df["modalidade"] = df["GRU_TAR"]
+    df["tipo_sistema"] = df["TIP_CC"]
+    df["situacao"] = df["SIT_ATIV"]
+    df["classe"] = df["CLAS_SUB"]
+    df["segmento"] = df["CONJ"]
+    df["subestacao"] = df["SUB"]
+    df["municipio_ibge"] = df["MUN"].astype(str)
+    df["bairro"] = df["BRR"]
+    df["cep"] = df["CEP"]
+    df["pac"] = pd.to_numeric(df["PAC"], errors="coerce")
+    df["pn_con"] = df["PN_CON"].astype("Int64")
+    df["descricao"] = None  # pode ser preenchido depois
 
-    # 1) Leitura sem geometria
-    t0 = time.time()
-    df = pyogrio.read_dataframe(str(gdb_path), layer=camada, read_geometry=False)
-    print(f"📥 Lido {len(df)} linhas de {camada} em {time.time()-t0:.2f}s")
+    df_bruto = df[[
+        "cod_id", "cod_distribuidora", "origem", "ano", "status", "data_conexao",
+        "cnae", "grupo_tensao", "modalidade", "tipo_sistema", "situacao", "classe",
+        "segmento", "subestacao", "municipio_ibge", "bairro", "cep", "pac", "pn_con", "descricao"
+    ]]
 
-    # 2) Transformações
-    t1 = time.time()
-    df["CEP"] = df["CEP"].astype(str).apply(normalizar_cep)
-
-    # id único por distribuidora, COD_ID e ano
-    df["id_interno"] = prefixo + "_" + df["COD_ID"].astype(str) + "_" + str(ano)
-    df["uc_id"] = [str(uuid.uuid4()) for _ in range(len(df))]
-
-    # prepara lead
-    df_lead = df[["id_interno","CEP","BRR","MUN"]].drop_duplicates("id_interno").copy()
-    df_lead["id"] = df_lead["id_interno"]
-    df_lead["bairro"] = df_lead["BRR"]
-    df_lead["cep"] = df_lead["CEP"]
-    df_lead["municipio_ibge"] = df_lead["MUN"]
-    df_lead["distribuidora"] = distribuidora
-    df_lead["status"] = "raw"
-    ts = datetime.utcnow()
-    df_lead["ultima_atualizacao"] = [ts] * len(df_lead)
-
-    cols_lead = [
-        "id","id_interno","bairro","cep",
-        "municipio_ibge","distribuidora","status","ultima_atualizacao"
-    ]
-
-    # prepara unidade_consumidora
-    df_uc = pd.DataFrame({
-        "id": df["uc_id"],
-        "cod_id": df["COD_ID"],
-        "lead_id": df["id_interno"],
-        "origem": camada,
-        "ano": ano,
-        "data_conexao": pd.to_datetime(df.get("DAT_CON"), errors="coerce"),
-        "tipo_sistema": df.get("TIP_SIST"),
-        "grupo_tensao": df.get("GRU_TEN"),
-        "modalidade": df.get("GRU_TAR"),
-        "situacao": df.get("SIT_ATIV"),
-        "classe": df.get("CLAS_SUB"),
-        "segmento": df.get("CONJ"),
-        "subestacao": df.get("SUB"),
-        "cnae": df.get("CNAE"),
-        "descricao": df.get("DESCR"),
-        "potencia": df["PN_CON"].fillna(0).astype(float)
-    })
-
-    # energia / demanda / qualidade
-    ene   = _to_pg_array(df[[c for c in df.columns if c.startswith("ENE_")]].fillna(0).astype(int).values)
-    dem_p = _to_pg_array(df[[c for c in df.columns if c.startswith("DEM_P_")]].fillna(0).astype(int).values)
-    dem_f = _to_pg_array(df[[c for c in df.columns if c.startswith("DEM_F_")]].fillna(0).astype(int).values)
-    dic   = _to_pg_array(df[[c for c in df.columns if c.startswith("DIC_")]].fillna(0).astype(int).values)
-    fic   = _to_pg_array(df[[c for c in df.columns if c.startswith("FIC_")]].fillna(0).astype(int).values)
-
-    df_energia   = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "ene": ene, "potencia": df_uc["potencia"]})
-    df_demanda   = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "dem_ponta": dem_p, "dem_fora_ponta": dem_f})
-    df_qualidade = pd.DataFrame({"id": df["uc_id"], "uc_id": df["uc_id"], "dic": dic, "fic": fic})
-    print(f"🛠️ Transformado em {time.time()-t1:.2f}s")
+    conn = psycopg2.connect(
+        host=DB_HOST, dbname=DB_NAME, user=DB_USER,
+        password=DB_PASS, port=DB_PORT, sslmode="require"
+    )
+    cur = conn.cursor()
 
     if modo_debug:
+        print(df_bruto.head())
         return
 
-    # 3) Carga otimizada com filtragem de duplicados
-    t2 = time.time()
-    with get_db_cursor(commit=True) as cur:
-        cur.execute(
-            f"SELECT id FROM {DB_SCHEMA}.lead WHERE id = ANY(%s)",
-            (df_lead["id"].tolist(),)
-        )
-        rows = cur.fetchall()
-        existentes = {(r["id"] if isinstance(r, dict) else r[0]) for r in rows}
-        df_novos = df_lead[~df_lead["id"].isin(existentes)]
-        if not df_novos.empty:
-            buf = io.StringIO()
-            df_novos[cols_lead].to_csv(buf, index=False, header=False, na_rep='\\N')
-            buf.seek(0)
-            cur.copy_expert(
-                f"COPY {DB_SCHEMA}.lead ({','.join(cols_lead)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
-                buf
-            )
-        else:
-            print("⏩ Nenhum lead novo para importar")
+    buf = io.StringIO()
+    df_bruto.to_csv(buf, index=False, header=False, sep=",", na_rep="\\N")
+    buf.seek(0)
 
-        # COPY unidade_consumidora
-        buf_uc = io.StringIO(); df_uc.to_csv(buf_uc, index=False, header=False, na_rep='\\N'); buf_uc.seek(0)
-        cur.copy_expert(
-            f"COPY {DB_SCHEMA}.unidade_consumidora ({','.join(df_uc.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
-            buf_uc
-        )
+    cur.copy_expert(f"""
+        COPY {TABELA_BRUTA} (
+            cod_id, cod_distribuidora, origem, ano, status, data_conexao,
+            cnae, grupo_tensao, modalidade, tipo_sistema, situacao, classe,
+            segmento, subestacao, municipio_ibge, bairro, cep, pac, pn_con, descricao
+        ) FROM STDIN WITH CSV NULL '\\N'
+    """, buf)
+    conn.commit()
+    print(f"📤 Carga em {camada} completa")
 
-        # COPY energia / demanda / qualidade
-        for table, df_tab in [
-            (f"{DB_SCHEMA}.lead_energia", df_energia),
-            (f"{DB_SCHEMA}.lead_demanda", df_demanda),
-            (f"{DB_SCHEMA}.lead_qualidade", df_qualidade)
-        ]:
-            buf_tab = io.StringIO(); df_tab.to_csv(buf_tab, index=False, header=False, na_rep='\\N'); buf_tab.seek(0)
-            cur.copy_expert(
-                f"COPY {table} ({','.join(df_tab.columns)}) FROM STDIN WITH (FORMAT csv, NULL '\\N')",
-                buf_tab
-            )
+    # Recupera os uc_id inseridos
+    query_ids = f"""
+        SELECT uc_id, cod_id FROM {TABELA_BRUTA}
+        WHERE ano = %s AND cod_distribuidora = %s AND origem = %s
+    """
+    cur.execute(query_ids, (ano, df["cod_distribuidora"].iloc[0], "UCAT"))
+    id_map = dict(cur.fetchall())
 
-        # atualiza status
-        cur.execute(f"""
-            INSERT INTO {DB_SCHEMA}.import_status(distribuidora,ano,camada,status)
-            VALUES(%s,%s,%s,'success')
-            ON CONFLICT(distribuidora,ano,camada)
-            DO UPDATE SET status=EXCLUDED.status,data_execucao=now()
-        """, (distribuidora, ano, camada))
+    # Prepara energia e demanda
+    df["uc_id"] = df["cod_id"].map(id_map)
+    df_energy = df[["uc_id", "ENE_P", "ENE_F"]].copy()
+    df_energy["consumo"] = df_energy[["ENE_P", "ENE_F"]].sum(axis=1)
+    df_energy["potencia"] = pd.to_numeric(df["DEM_CONT"], errors="coerce")
+    df_energy = df_energy[["uc_id", "consumo", "potencia"]].dropna()
 
-    print(f"📤 Carga completa em {time.time()-t2:.2f}s — {camada} importado com sucesso!")
+    buf_energy = io.StringIO()
+    df_energy.to_csv(buf_energy, index=False, header=False, sep=",", na_rep="\\N")
+    buf_energy.seek(0)
+
+    cur.copy_expert(f"""
+        COPY {TABELA_ENERGIA} (uc_id, consumo, potencia)
+        FROM STDIN WITH CSV NULL '\\N'
+    """, buf_energy)
+    conn.commit()
+
+    # Demanda ponta e fora de ponta
+    df_demand = df[[
+        "uc_id",
+        *[f"DEM_P_{str(i).zfill(2)}" for i in range(1, 13)],
+        *[f"DEM_F_{str(i).zfill(2)}" for i in range(1, 13)],
+    ]].copy()
+
+    df_demand["dem_ponta"] = _to_pg_array(df_demand[[f"DEM_P_{str(i).zfill(2)}" for i in range(1, 13)]].values)
+    df_demand["dem_fora_ponta"] = _to_pg_array(df_demand[[f"DEM_F_{str(i).zfill(2)}" for i in range(1, 13)]].values)
+    df_demand = df_demand[["uc_id", "dem_ponta", "dem_fora_ponta"]].dropna()
+
+    buf_demand = io.StringIO()
+    df_demand.to_csv(buf_demand, index=False, header=False, sep=",", na_rep="\\N")
+    buf_demand.seek(0)
+
+    cur.copy_expert(f"""
+        COPY {TABELA_DEMANDA} (uc_id, dem_ponta, dem_fora_ponta)
+        FROM STDIN WITH CSV NULL '\\N'
+    """, buf_demand)
+    conn.commit()
+
+    registrar_status(conn, distribuidora, ano, camada, "sucesso")
+    cur.close()
+    conn.close()
