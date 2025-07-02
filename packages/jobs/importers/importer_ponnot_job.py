@@ -15,7 +15,7 @@ import shapely.geometry as geom
 load_dotenv()
 DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
 
-# Configura conexão (sem echo e sem logs de binds)
+# Configura conexão (echo desligado, somente erros do engine)
 conn_str = (
     f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@"
     f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}?sslmode=require"
@@ -25,18 +25,14 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
 
 
 def carregar_geometria_com_progresso(gdb_path: Path, layer: str):
-    """
-    Lê camada via Fiona retornando lista de tuplas (COD_ID, geometry), com barra de progresso.
-    """
     with fiona.open(str(gdb_path), layer=layer) as src:
         total = len(src)
         print(f"🔍 Camada '{layer}' possui {total} feições")
         data = []
         for feat in tqdm(src, total=total, desc="Lendo feições", ncols=80):
-            props = feat['properties']
-            geom_json = feat['geometry']
-            if props.get('COD_ID') is not None and geom_json:
-                data.append((props['COD_ID'], geom_json))
+            props = feat["properties"]
+            if props.get("COD_ID") is not None and feat["geometry"]:
+                data.append((props["COD_ID"], feat["geometry"]))
     return data
 
 
@@ -51,13 +47,13 @@ def main(
     print(f"🔄 Iniciando PONNOT: {distribuidora} ({ano}), camada '{camada}'")
     print(f"🚨 DEBUG MODE: {modo_debug}")
 
-    # 1) Verifica se a camada existe
+    # 1) check layer
     layers = listlayers(str(gdb_path))
     if camada not in layers:
         print(f"❌ Camada '{camada}' não encontrada. Disponíveis: {layers}")
         return
 
-    # 2) Leitura com progresso
+    # 2) read features
     print(f"📥 Iniciando leitura de '{camada}'...")
     inicio_leitura = datetime.now()
     try:
@@ -65,38 +61,30 @@ def main(
     except Exception as e:
         print(f"❌ Erro na leitura: {e}")
         return
-    dur_leitura = (datetime.now() - inicio_leitura).total_seconds()
-    print(f"📥 Leitura concluída: {len(raw)} feições em {dur_leitura:.2f}s")
+    print(f"📥 Leitura concluída: {len(raw)} feições em {(datetime.now() - inicio_leitura).total_seconds():.2f}s")
 
-    # 3) Conversão para GeoDataFrame
+    # 3) to GeoDataFrame
     print("🛠️ Convertendo para GeoDataFrame...")
     inicio_conv = datetime.now()
-    rows = []
-    for cod_id, geom_json in raw:
-        shape = geom.shape(geom_json)
-        rows.append({'COD_ID': cod_id, 'geometry': shape})
-    gdf = gpd.GeoDataFrame(rows, geometry='geometry')
+    rows = [{"COD_ID": cid, "geometry": geom.shape(js)} for cid, js in raw]
+    gdf = gpd.GeoDataFrame(rows, geometry="geometry")
     print(f"✅ Convertido em {(datetime.now() - inicio_conv).total_seconds():.2f}s")
 
-    # 4) Extração de coordenadas
+    # 4) extract coords
     print("🔎 Extraindo coordenadas...")
     inicio_ext = datetime.now()
-    coords = []
-    for row in tqdm(gdf.itertuples(index=False), total=len(gdf), desc="Extraindo coord", ncols=80):
-        coords.append(json.dumps({'lat': row.geometry.y, 'lng': row.geometry.x}))
-    gdf['coordenadas'] = coords
+    coords = [json.dumps({"lat": row.geometry.y, "lng": row.geometry.x})
+              for row in tqdm(gdf.itertuples(index=False), total=len(gdf), desc="Extraindo coord")]
+    gdf["coordenadas"] = coords
     print(f"✅ Extração concluída em {(datetime.now() - inicio_ext).total_seconds():.2f}s")
 
     if modo_debug:
-        print(gdf[['COD_ID', 'coordenadas']].head())
+        print(gdf[["COD_ID", "coordenadas"]].head())
         return
 
-    # 5) Garante coluna 'coordenadas'
+    # 5) ensure column
     print("🔧 Garantindo coluna 'coordenadas'...")
-    alter = text(
-        f"ALTER TABLE {DB_SCHEMA}.unidade_consumidora "
-        "ADD COLUMN IF NOT EXISTS coordenadas TEXT;"
-    )
+    alter = text(f"ALTER TABLE {DB_SCHEMA}.unidade_consumidora ADD COLUMN IF NOT EXISTS coordenadas TEXT;")
     with engine.begin() as conn:
         try:
             conn.execute(alter)
@@ -104,7 +92,7 @@ def main(
         except Exception as e:
             print(f"⚠️ Falha ao garantir coluna: {e}")
 
-    # 6) UPDATE em lote usando expanding binds + ARRAY[:]
+    # 6) batch UPDATE using expanding binds
     print("🚀 Atualizando coordenadas no banco (expanding binds + ARRAY)...")
     stmt = text(f"""
         UPDATE {DB_SCHEMA}.unidade_consumidora AS u
@@ -117,27 +105,22 @@ def main(
         WHERE u.cod_id = v.cod_id
           AND (u.coordenadas IS NULL OR u.coordenadas = '{{}}')
     """).bindparams(
-        bindparam('cod_ids', expanding=True),
-        bindparam('coords', expanding=True)
+        bindparam("cod_ids", expanding=True),
+        bindparam("coords", expanding=True)
     )
 
     cod_ids, coord_vals = zip(*[(row.COD_ID, row.coordenadas) for row in gdf.itertuples(index=False)])
-    inicio_db = datetime.now()
     try:
         with engine.begin() as conn:
-            conn.execute(stmt, {'cod_ids': list(cod_ids), 'coords': list(coord_vals)})
-        print(f"✅ UPDATE concluído em {(datetime.now() - inicio_db).total_seconds():.2f}s")
-    except Exception:
-        import traceback
-        print("❌ Erro no UPDATE em lote:")
-        traceback.print_exc()
+            conn.execute(stmt, {"cod_ids": list(cod_ids), "coords": list(coord_vals)})
+        print(f"✅ UPDATE concluído em {(datetime.now() - inicio_ext).total_seconds():.2f}s")
+    except Exception as e:
+        print(f"❌ Erro no UPDATE em lote: {e}")
         return
 
-    # 7) Conclusão
+    # 7) done
     print(f"📤 PONNOT finalizado para {distribuidora} ({ano})")
 
 
 if __name__ == "__main__":
-    # Exemplo de chamada:
-    # main(Path("data/downloads/ENEL_DISTRIBUICAO_RIO_2023.gdb"), "ENEL DISTRIBUIÇÃO RIO", 2023, "PONNOT")
     pass
