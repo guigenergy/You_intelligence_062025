@@ -6,16 +6,17 @@ import fiona
 import geopandas as gpd
 from fiona import listlayers
 from pathlib import Path
-from sqlalchemy import create_engine, text, bindparam
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 from datetime import datetime
 from tqdm import tqdm
 import shapely.geometry as geom
+from io import StringIO
 
 load_dotenv()
 DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
 
-# Configura conexão (echo desligado, somente erros do engine)
+# Conexão (echo desligado)
 conn_str = (
     f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@"
     f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}?sslmode=require"
@@ -47,80 +48,82 @@ def main(
     print(f"🔄 Iniciando PONNOT: {distribuidora} ({ano}), camada '{camada}'")
     print(f"🚨 DEBUG MODE: {modo_debug}")
 
-    # 1) check layer
+    # 1) Check layer
     layers = listlayers(str(gdb_path))
     if camada not in layers:
         print(f"❌ Camada '{camada}' não encontrada. Disponíveis: {layers}")
         return
 
-    # 2) read features
+    # 2) Read features
     print(f"📥 Iniciando leitura de '{camada}'...")
-    inicio_leitura = datetime.now()
-    try:
-        raw = carregar_geometria_com_progresso(gdb_path, camada)
-    except Exception as e:
-        print(f"❌ Erro na leitura: {e}")
-        return
-    print(f"📥 Leitura concluída: {len(raw)} feições em {(datetime.now() - inicio_leitura).total_seconds():.2f}s")
+    t0 = datetime.now()
+    raw = carregar_geometria_com_progresso(gdb_path, camada)
+    print(f"📥 Leitura concluída: {len(raw)} feições em {(datetime.now()-t0).total_seconds():.2f}s")
 
-    # 3) to GeoDataFrame
+    # 3) To GeoDataFrame
     print("🛠️ Convertendo para GeoDataFrame...")
-    inicio_conv = datetime.now()
+    t1 = datetime.now()
     rows = [{"COD_ID": cid, "geometry": geom.shape(js)} for cid, js in raw]
     gdf = gpd.GeoDataFrame(rows, geometry="geometry")
-    print(f"✅ Convertido em {(datetime.now() - inicio_conv).total_seconds():.2f}s")
+    print(f"✅ Convertido em {(datetime.now()-t1).total_seconds():.2f}s")
 
-    # 4) extract coords
+    # 4) Extract coords
     print("🔎 Extraindo coordenadas...")
-    inicio_ext = datetime.now()
-    coords = [json.dumps({"lat": row.geometry.y, "lng": row.geometry.x})
-              for row in tqdm(gdf.itertuples(index=False), total=len(gdf), desc="Extraindo coord")]
-    gdf["coordenadas"] = coords
-    print(f"✅ Extração concluída em {(datetime.now() - inicio_ext).total_seconds():.2f}s")
+    t2 = datetime.now()
+    coords_list = []
+    for row in tqdm(gdf.itertuples(index=False), total=len(gdf), desc="Extraindo coord", ncols=80):
+        coords_list.append(json.dumps({"lat": row.geometry.y, "lng": row.geometry.x}))
+    gdf["coordenadas"] = coords_list
+    print(f"✅ Extração concluída em {(datetime.now()-t2).total_seconds():.2f}s")
 
     if modo_debug:
         print(gdf[["COD_ID", "coordenadas"]].head())
         return
 
-    # 5) ensure column
+    # 5) Ensure column
     print("🔧 Garantindo coluna 'coordenadas'...")
     alter = text(f"ALTER TABLE {DB_SCHEMA}.unidade_consumidora ADD COLUMN IF NOT EXISTS coordenadas TEXT;")
     with engine.begin() as conn:
-        try:
-            conn.execute(alter)
-            print("✅ Coluna garantida")
-        except Exception as e:
-            print(f"⚠️ Falha ao garantir coluna: {e}")
+        conn.execute(alter)
+        print("✅ Coluna garantida")
 
-    # 6) batch UPDATE using expanding binds
-    print("🚀 Atualizando coordenadas no banco (expanding binds + ARRAY)...")
-    stmt = text(f"""
-        UPDATE {DB_SCHEMA}.unidade_consumidora AS u
-        SET coordenadas = v.coordenadas
-        FROM (
-          SELECT
-            UNNEST(ARRAY[:cod_ids])   AS cod_id,
-            UNNEST(ARRAY[:coords])    AS coordenadas
-        ) AS v
-        WHERE u.cod_id = v.cod_id
-          AND (u.coordenadas IS NULL OR u.coordenadas = '{{}}')
-    """).bindparams(
-        bindparam("cod_ids", expanding=True),
-        bindparam("coords", expanding=True)
-    )
+    # 6) Bulk UPDATE via temp table + COPY
+    print("🚀 Atualizando coordenadas no banco (temp table + COPY)…")
+    # abre raw_connection para usar cursor copy_from
+    with engine.raw_connection() as raw_conn:
+        cur = raw_conn.cursor()
+        # cria temp table
+        cur.execute(f"""
+            CREATE TEMP TABLE temp_coords (
+                cod_id      BIGINT,
+                coordenadas TEXT
+            ) ON COMMIT DROP;
+        """)
+        # prepara o buffer CSV (tab-delim)
+        buf = StringIO()
+        for cid, coord in zip(gdf["COD_ID"], gdf["coordenadas"]):
+            # tab-separated, sem cabeçalho
+            buf.write(f"{cid}\t{coord}\n")
+        buf.seek(0)
+        # injeta tudo de uma vez
+        cur.copy_from(buf, "temp_coords", columns=("cod_id","coordenadas"), sep="\t")
+        # faz o UPDATE via join
+        cur.execute(f"""
+            UPDATE {DB_SCHEMA}.unidade_consumidora AS u
+            SET coordenadas = t.coordenadas
+            FROM temp_coords AS t
+            WHERE u.cod_id = t.cod_id
+              AND (u.coordenadas IS NULL OR u.coordenadas = '{{}}');
+        """)
+        raw_conn.commit()
+    print(f"✅ UPDATE em lote concluído em {(datetime.now()-t2).total_seconds():.2f}s")
 
-    cod_ids, coord_vals = zip(*[(row.COD_ID, row.coordenadas) for row in gdf.itertuples(index=False)])
-    try:
-        with engine.begin() as conn:
-            conn.execute(stmt, {"cod_ids": list(cod_ids), "coords": list(coord_vals)})
-        print(f"✅ UPDATE concluído em {(datetime.now() - inicio_ext).total_seconds():.2f}s")
-    except Exception as e:
-        print(f"❌ Erro no UPDATE em lote: {e}")
-        return
-
-    # 7) done
+    # 7) Done
     print(f"📤 PONNOT finalizado para {distribuidora} ({ano})")
 
 
 if __name__ == "__main__":
+    # Exemplo:
+    # main(Path("data/downloads/ENEL_DISTRIBUICAO_RIO_2023.gdb"),
+    #      "ENEL DISTRIBUIÇÃO RIO", 2023, "PONNOT")
     pass
