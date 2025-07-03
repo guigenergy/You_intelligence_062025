@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Schema para operação (plead, public, etc.)
-DB_SCHEMA = os.getenv("DB_SCHEMA", "plead")
+DB_SCHEMA = os.getenv("DB_SCHEMA", "lead")
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),

@@ -1,58 +1,81 @@
 #!/usr/bin/env python3
 import sys
 import asyncio
+import traceback
 from pathlib import Path
 
-# Adiciona o root do projeto para os imports funcionarem
+# para permitir imports a partir da raiz do projeto
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from packages.jobs.importers.importer_ucat_job import main as importar_ucat
-from packages.jobs.importers.importer_ucmt_job import main as importar_ucmt
 from packages.jobs.importers.importer_ucbt_job import main as importar_ucbt
 from packages.jobs.importers.importer_ponnot_job import main as importar_ponnot
+from packages.jobs.utils.rastreio import registrar_status
 
-# Diretório onde os arquivos GDB descompactados são salvos
+# onde estão os GDBs extraídos
 GDB_DIR = Path("data/downloads")
 
-# Dicionário com os importadores por camada
+# camada -> função de import
 BASES = {
-    "UCAT_tab": importar_ucat,
-    "UCMT_tab": importar_ucmt,
+    # "UCAT_tab": importar_ucat,
+    # "UCMT_tab": importar_ucmt,
     "UCBT_tab": importar_ucbt,
-    "PONNOT": importar_ponnot,
+    "PONNOT":   importar_ponnot,
 }
 
 def encontrar_gdb(prefixo: str, ano: int) -> Path | None:
     """
-    Busca um GDB extraído local com o padrão {prefixo}_{ano}*.gdb
+    Busca um GDB no padrão {prefixo}_{ano}*.gdb dentro de GDB_DIR
     """
     candidatos = list(GDB_DIR.glob(f"{prefixo}_{ano}*.gdb"))
     return candidatos[0] if candidatos else None
 
-async def main():
-    distribuidoras = [
-        "ENEL DISTRIBUIÇÃO RIO",
-        "CPFL PAULISTA",
-        "CEMIG DISTRIBUIÇÃO",
-        # adicionar mais distribuidoras conforme necessário
+async def importar_distribuidora(distribuidora: str, prefixo: str, ano: int):
+    gdb = encontrar_gdb(prefixo, ano)
+    if not gdb:
+        print(f"⚠️  GDB não encontrado para {distribuidora} {ano}")
+        await registrar_status(prefixo, ano, camada="ALL", status="gdb_not_found")
+        return
+
+    for camada, importer in BASES.items():
+        print(f"\n🔄 Iniciando importação: {camada} | {distribuidora} {ano}")
+        await registrar_status(prefixo, ano, camada=camada, status="started")
+        try:
+            importer(
+                gdb_path=gdb,
+                distribuidora=distribuidora,
+                ano=ano,
+                prefixo=prefixo,
+                camada=camada,
+                modo_debug=False
+            )
+        except Exception as e:
+            print(f"❌ Erro ao importar {camada} para {distribuidora} {ano}:")
+            traceback.print_exc()
+            await registrar_status(prefixo, ano, camada=camada, status=f"failed: {e}")
+            # opcional: continue para tentar próxima camada,
+            # ou pare tudo:
+            # return
+        else:
+            print(f"✅ Importação concluída: {camada} | {distribuidora} {ano}")
+            await registrar_status(prefixo, ano, camada=camada, status="success")
+
+async def rodar_orquestrador(selecionados: list[dict]):
+    """
+    Recebe lista de dicts:
+    [
+      {"nome": "CPFL PAULISTA", "prefixo": "CPFL_Paulista_63", "ano": 2023},
+      {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383", "ano": 2023},
+      ...
     ]
-    anos = [2020, 2021, 2022, 2023]
-
-    for dist in distribuidoras:
-        for ano in anos:
-            prefixo = dist.replace(" ", "_")
-            gdb_path = encontrar_gdb(prefixo, ano)
-
-            if not gdb_path:
-                print(f"\n⚠️  GDB não encontrado para {dist} {ano}\n")
-                continue
-
-            for camada, job in BASES.items():
-                print(f"\n🔄 Iniciando importação: {camada} | {dist} {ano}")
-                try:
-                    await job(gdb_path=str(gdb_path), distribuidora=dist, ano=ano)
-                except Exception as e:
-                    print(f"❌ Erro real ao importar {camada} para {dist} {ano}:\n{e}")
+    """
+    for item in selecionados:
+        await importar_distribuidora(item["nome"], item["prefixo"], item["ano"])
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # defina aqui as distribuidoras a processar
+    DISTRIBUIDORAS = [
+        {"nome": "CPFL PAULISTA",        "prefixo": "CPFL_Paulista_63",   "ano": 2023},
+        {"nome": "ENEL DISTRIBUIÇÃO RIO", "prefixo": "Enel_RJ_383",         "ano": 2023},
+        # adicione mais conforme necessário
+    ]
+    asyncio.run(rodar_orquestrador(DISTRIBUIDORAS))
