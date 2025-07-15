@@ -16,6 +16,8 @@ services:
       - DB_USER=guilherme@psql-database-mapping
       - DB_PASS=SenhaForteAqui
       - DB_PORT=5432
+      - DB_SCHEMA=intel_lead       
+      - DB_SSLMODE=require    
     working_dir: /code/apps/api
 
   frontend:
@@ -31,7 +33,7 @@ services:
       - /app/node_modules
     environment:
       # 🟢 IMPORTANTE: use localhost no navegador (host) para funcionar fora do container
-      - NEXT_PUBLIC_API_BASE=http://localhost:8000/v1
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
       - NODE_ENV=development
     depends_on:
       - api
