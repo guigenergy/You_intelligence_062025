@@ -13,6 +13,7 @@ export function SectionHero() {
                 <p className="text-xl/6 text-gray-400 max-w-3xl mx-auto mb-12 ">Lorem, ipsum dolor sit amet consectetur adipisicing elit. Ratione aspernatur sed voluptas, iure suscipit esse aliquam voluptatum illo neque vel quod soluta impedit quasi! Odit tempore obcaecati optio iure dignissimos.</p>
                <AreaCtas/>
             </div>
+            
         </GridContainer>
     </section>
   );
