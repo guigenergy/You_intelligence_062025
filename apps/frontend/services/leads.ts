@@ -24,6 +24,7 @@ const fetcherLeads = async (): Promise<Lead[]> => {
     descricao: item.descricao,
     tipo: item.tipo_sistema_desc ?? item.classe_desc ?? 'N/A',
     estado: item.municipio_uf ?? item.estado ?? 'UF',
+    origem: item.origem ?? 'Desconhecida',
     latitude: item.latitude_final ?? item.latitude,
     longitude: item.longitude_final ?? item.longitude,
   }))

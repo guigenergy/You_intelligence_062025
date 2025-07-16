@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { DISTRIBUIDORAS_MAP } from '@/utils/distribuidoras'
+import { ORIGENS_MAP } from '@/utils/origens'
 type Props = {
   rows: Lead[]
 }
@@ -43,6 +44,7 @@ export default function LeadsTable({ rows }: Props) {
             <th className="px-4 py-2 text-xs uppercase tracking-wider">Estado</th>
             <th className="px-4 py-2 text-xs uppercase tracking-wider">Distribuidora</th>
             <th className="px-4 py-2 text-xs uppercase tracking-wider">Segmento</th>
+            <th className="px-4 py-2 text-xs uppercase tracking-wider">Origem</th>
             <th className="px-4 py-2 text-xs uppercase tracking-wider">Descrição</th>
           </tr>
         </thead>
@@ -68,6 +70,7 @@ export default function LeadsTable({ rows }: Props) {
               <td className="px-4 py-2">{l.estado ?? '—'}</td>
               <td className="px-4 py-2">{DISTRIBUIDORAS_MAP[l.distribuidora] ?? l.distribuidora ?? '—'}</td>
               <td className="px-4 py-2">{l.segmento ?? '—'}</td>
+              <td>{ORIGENS_MAP[l.origem] || l.origem}</td>
               <td className="px-4 py-2" title={l.descricao}>{l.descricao ?? '—'}</td>
               </tr>
           ))}

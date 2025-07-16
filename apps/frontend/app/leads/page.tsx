@@ -9,6 +9,7 @@ import { useSort } from '@/store/sort'
 import { useLeads } from '@/services/leads'
 import { CNAE_SEGMENTOS } from '@/utils/cnae'
 import { DISTRIBUIDORAS_MAP } from '@/utils/distribuidoras'
+import { ORIGENS_MAP } from '@/utils/origens'
 import { stripDiacritics } from '@/utils/stripDiacritics'
 import { FileDown, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -26,12 +27,12 @@ function exportarParaExcel(leadsParaExportar: Lead[], nomeArquivo = 'leads.xlsx'
 export default function LeadsPage() {
   const [pagina, setPagina] = useState(1)
   const [buscaInput, setBuscaInput] = useState('')
-  const { estado, distribuidora, segmento, tipo, clearFilters, setEstado, setBusca, busca, setTipo } = useFilters()
+  const { estado, distribuidora, segmento, origem, clearFilters, setEstado, setBusca, busca, setOrigem } = useFilters()
   const { order, setOrder } = useSort()
   const { leads, isLoading, error } = useLeads()
 
   console.log('[🚨] Exemplo de lead:', leads[0])
-  console.log('[⚙️] Filtros aplicados:', { estado, tipo, distribuidora, segmento, busca })
+  console.log('[⚙️] Filtros aplicados:', { estado, origem, distribuidora, segmento, busca })
 
   const estados = useMemo<string[]>(() => {
     return Array.from(new Set(leads.map((l) => l.estado).filter(Boolean))).sort()
@@ -43,7 +44,7 @@ const leadsFiltrados = useMemo<Lead[]>(() => {
   const filtroEstado = estado.trim().toLowerCase()
   const filtroDistribuidora = distribuidora.trim()
   const filtroSegmento = segmento.trim()
-  const filtroTipo = tipo.trim()
+  const filtroOrigem = origem.trim()
 
   if (filtroEstado)
     arr = arr.filter((l) => l.estado?.toLowerCase() === filtroEstado)
@@ -55,9 +56,10 @@ const leadsFiltrados = useMemo<Lead[]>(() => {
 
   if (filtroSegmento)
     arr = arr.filter((l) => l.cnae === filtroSegmento)
+    
 
-  if (filtroTipo)
-  arr = arr.filter((l) => l.tipo === filtroTipo)
+  if (filtroOrigem)
+  arr = arr.filter((l) => l.origem?.toLowerCase() === filtroOrigem.toLowerCase())
 
   if (busca) {
     const term = stripDiacritics(busca.toLowerCase())
@@ -91,7 +93,7 @@ const leadsFiltrados = useMemo<Lead[]>(() => {
   }
 
   return arr
-}, [leads, estado, distribuidora, segmento, order, busca, tipo])
+}, [leads, estado, distribuidora, segmento, order, busca, origem])
 
 
   const totalPaginas = Math.ceil(leadsFiltrados.length / ITEMS_POR_PAGINA)
@@ -145,13 +147,15 @@ return (
       <label className="flex items-center gap-2 text-white text-sm">
         tipo:
         <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
+          value={origem}
+          onChange={(e) => setOrigem(e.target.value)}
           className="bg-zinc-800 text-xs text-white border border-zinc-600 px-2 py-1 rounded"
         >
           <option value="">Todos</option>
-          <option value="ucmt">UCMT</option>
-          <option value="ucbt">UCBT</option>
+          {Object.entries(ORIGENS_MAP).map(([key, label]) => (
+          <option key={key} value={key}>{label}</option>
+        ))}
+
         </select>
       </label>
 

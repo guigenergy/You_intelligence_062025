@@ -5,12 +5,12 @@ type FiltersState = {
   distribuidora: string;
   segmento: string;
   busca: string;
-  tipo: string;
+  origem: string;
   setEstado: (uf: string) => void;
   setDistribuidora: (codigo: string) => void;
   setSegmento: (cnae: string) => void;
   setBusca: (texto: string) => void;
-  setTipo: (tipo: string) => void;
+  setOrigem: (origem: string) => void;
   clearFilters: () => void;
 };
 
@@ -19,12 +19,12 @@ export const useFilters = create<FiltersState>((set) => ({
   distribuidora: '',
   segmento: '',
   busca: '',
-  tipo: '',
+  origem: '',
   setEstado: (uf: string) => set({ estado: uf }),
   setDistribuidora: (c: string) => set({ distribuidora: c }),
   setSegmento: (cnae: string) => set({ segmento: cnae }),
   setBusca: (texto: string) => set({ busca: texto }),
-  setTipo: (tipo: string) => set({ tipo }),
+  setOrigem: (origem: string) => set({ origem }),
   clearFilters: (): void =>
-    set({ estado: '', distribuidora: '', segmento: '', busca: '', tipo: '' }),
+    set({ estado: '', distribuidora: '', segmento: '', busca: '', origem: '' }),
 }));
