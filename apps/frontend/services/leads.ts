@@ -32,7 +32,6 @@ const fetcherTop300 = async (): Promise<Lead[]> => {
   })
 }
 
-
 export function useLeads() {
   const { data, error } = useSWR<Lead[]>('/leads-geo', fetcherTop300, {
     revalidateOnFocus: false,
