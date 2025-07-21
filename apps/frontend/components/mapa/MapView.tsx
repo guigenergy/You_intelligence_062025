@@ -83,11 +83,11 @@ export default function MapView({ leads, selectedId }: Props) {
           closeButton={false}
           offset={[0, 10]}
         >
-          <p className="text-xs text-gray-500">DIC: {selecionado.dicMed}</p>
-          <p className="text-xs text-gray-500">FIC: {selecionado.ficMed}</p>
-          <p className="text-xs text-gray-500">CNAE: {selecionado.cnae}</p>
-          <p className="text-xs text-gray-500">Estado: {selecionado.estado}</p>
-          <p className="text-xs text-gray-500">Distribuidora: {selecionado.distribuidora}</p>
+          <p className="text-xs text-black-500">DIC: {selecionado.dicMed}</p>
+          <p className="text-xs text-black-500">FIC: {selecionado.ficMed}</p>
+          <p className="text-xs text-black-500">CNAE: {selecionado.cnae}</p>
+          <p className="text-xs text-black-500">Estado: {selecionado.estado}</p>
+          <p className="text-xs text-black-500">Distribuidora: {selecionado.distribuidora}</p>
         </Popup>
       )}
     </Map>

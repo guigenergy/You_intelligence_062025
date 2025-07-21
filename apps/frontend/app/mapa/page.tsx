@@ -38,9 +38,8 @@ export default function MapaPage() {
     arr = arr.filter((l) => String(l.codigoDistribuidora) === distribuidora)
   }
 
-  if (segmento) {
-    arr = arr.filter((l) => l.segmento === segmento)
-  }
+    if (segmento)
+    arr = arr.filter((l) => l.cnae === segmento)
 
   switch (order) {
     case 'dic-asc':
@@ -59,6 +58,7 @@ export default function MapaPage() {
 
   return arr
 })()
+
 
   return (
     <div className="flex flex-col h-screen">

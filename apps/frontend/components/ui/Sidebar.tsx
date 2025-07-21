@@ -10,10 +10,11 @@ import {
   MapPinned,
   BarChart2,
   MapIcon,
+  LayoutDashboard,
 } from 'lucide-react';
 
 const links = [
-  { href: '/',        label: 'Home',             icon: Home },
+  { href: '/',        label: 'Dashboard',  icon: LayoutDashboard },
   //{ href: '/dashboard',label: 'Dashboard',       icon: LayoutDashboard },
   { href: '/mapa',    label: 'Mapa interativo',  icon: MapPinned },
   { href: '/leads',   label: 'Dados',            icon: BarChart2 },

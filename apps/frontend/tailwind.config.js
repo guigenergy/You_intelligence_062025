@@ -10,7 +10,12 @@ module.exports = {
   "./apps/frontend/components/**/*.{js,ts,jsx,tsx}",
 ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: '#00ff00',
+        secondary: '#00cc00',
+      },
+    },
   },
   plugins: [],
 };

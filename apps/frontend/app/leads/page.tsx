@@ -50,7 +50,7 @@ const leadsFiltrados = useMemo<Lead[]>(() => {
 
   if (filtroDistribuidora)
   arr = arr.filter((l) =>
-    DISTRIBUIDORAS_MAP[l.distribuidora] === filtroDistribuidora
+    l.distribuidora === filtroDistribuidora
   )
 
   if (filtroSegmento)
