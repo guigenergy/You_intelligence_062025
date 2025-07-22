@@ -5,9 +5,9 @@ import { CNAE_SEGMENTOS } from '@/utils/cnae'
 const base = process.env.NEXT_PUBLIC_API_BASE ?? ''
 
 // Função para buscar os leads formatando os campos
-const fetcherTop300 = async (): Promise<Lead[]> => {
-  const res = await fetch(`${base}/leads-geo`)
-  if (!res.ok) throw new Error('Erro ao carregar os top 300 leads')
+const fetcherLeads = async (): Promise<Lead[]> => {
+  const res = await fetch(`${base}/v1/leads`)
+  if (!res.ok) throw new Error('Erro ao carregar os leads')
 
   const raw = await res.json()
 
@@ -32,7 +32,7 @@ const fetcherTop300 = async (): Promise<Lead[]> => {
   })
 }
 export function useLeads() {
-  const { data, error } = useSWR<Lead[]>('/leads-geo', fetcherTop300, {
+  const { data, error } = useSWR<Lead[]>('/v1/leads', fetcherLeads, {
     revalidateOnFocus: false,
     onErrorRetry: () => {},
   })
