@@ -61,3 +61,4 @@ ruff_cache/
 *.swp
 .DS_Store
 Thumbs.db
+-e "data/\n*.gdb\n*.csv\n*.zip\nnode_modules/\n.env\n*.sqlite\n*.db\n*.parquet\n" 
