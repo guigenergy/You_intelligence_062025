@@ -3,9 +3,15 @@ import { useState } from 'react';
 
 const DISTRIBUIDORAS = [
   'ENEL DISTRIBUIÇÃO RIO',
-  'CPFL PAULISTA',
+  'ENERGISA',
   'LIGHT',
   'ELETROPAULO',
+  'ENEL DISTRIBUIÇÃO SP',
+  'NEOENERGIA',
+  'EDP SP',
+  'CPFL PAULISTA',
+  'CPFL PIRATININGA',
+  'CPFL SANTA CRUZ',
 ];
 
 export default function SelectDistribuidoras({ 
