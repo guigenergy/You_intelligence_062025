@@ -1,0 +1,39 @@
+// Relacionamentos FK
+digraph {
+	import_queue
+	ponto_notavel
+	lead_energia_mensal
+	lead_energia_mensal -> lead_bruto [label=lead_bruto_id]
+	lead_energia_mensal -> import_status [label=import_id]
+	lead_qualidade_mensal
+	lead_qualidade_mensal -> lead_bruto [label=lead_bruto_id]
+	lead_qualidade_mensal -> import_status [label=import_id]
+	lead_demanda_mensal
+	lead_demanda_mensal -> lead_bruto [label=lead_bruto_id]
+	lead_demanda_mensal -> import_status [label=import_id]
+	lead_enrichment_log
+	lead_enrichment_log -> lead_bruto [label=lead_bruto_id]
+	modalidade_tarifaria
+	tipo_sistema
+	situacao_uc
+	classe_consumo
+	distribuidora
+	segmento_mercado
+	municipio
+	lead_bruto
+	lead_bruto -> import_status [label=import_id]
+	lead_bruto -> distribuidora [label=distribuidora_id]
+	lead_bruto -> grupo_tensao [label=grupo_tensao]
+	lead_bruto -> modalidade_tarifaria [label=modalidade]
+	lead_bruto -> tipo_sistema [label=tipo_sistema]
+	lead_bruto -> situacao_uc [label=situacao]
+	lead_bruto -> classe_consumo [label=classe]
+	lead_bruto -> segmento_mercado [label=segmento]
+	lead_bruto -> municipio [label=municipio_id]
+	grupo_tensao
+	cnae
+	import_status
+	import_status -> distribuidora [label=distribuidora_id]
+	dataset_url_catalog
+	download_log
+}

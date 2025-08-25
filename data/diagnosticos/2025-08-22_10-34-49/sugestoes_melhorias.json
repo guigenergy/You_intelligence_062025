@@ -1,0 +1,135 @@
+{
+  "score_geral": 32,
+  "sugestoes": [
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `import_queue` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `ponto_notavel` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `modalidade_tarifaria` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `tipo_sistema` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `situacao_uc` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `classe_consumo` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `distribuidora` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `segmento_mercado` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `municipio` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `grupo_tensao` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `cnae` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `dataset_url_catalog` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "foreign key",
+      "recomendacao": "Avaliar se `download_log` deveria ter FKs",
+      "motivacao": "Sem FKs — pode indicar acoplamento fraco ou falta de modelagem relacional"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Padronizar ou revisar coluna `ano`",
+      "motivacao": "Presente em 4 tabelas — possível desnormalização"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Padronizar ou revisar coluna `lead_bruto_id`",
+      "motivacao": "Presente em 4 tabelas — possível desnormalização"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Padronizar ou revisar coluna `origem`",
+      "motivacao": "Presente em 5 tabelas — possível desnormalização"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Padronizar ou revisar coluna `import_id`",
+      "motivacao": "Presente em 5 tabelas — possível desnormalização"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Padronizar ou revisar coluna `descricao`",
+      "motivacao": "Presente em 8 tabelas — possível desnormalização"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `modalidade_tarifaria`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `tipo_sistema`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `situacao_uc`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `classe_consumo`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `distribuidora`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `segmento_mercado`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `grupo_tensao`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    },
+    {
+      "tipo": "coluna",
+      "recomendacao": "Revisar granularidade de tipos em `cnae`",
+      "motivacao": "Mais de 60% dos campos são genéricos (text/jsonb/varchar)"
+    }
+  ]
+}
