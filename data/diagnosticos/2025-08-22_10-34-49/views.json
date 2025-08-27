@@ -1,0 +1,38 @@
+[
+  {
+    "nome": "dataset_sources_slim",
+    "definicao": " SELECT id AS source_id,\n    url,\n    upper(regexp_replace(COALESCE((regexp_match(title, '^\\s*([A-Z0-9_]+)\\s*[-–]'::text))[1], ( SELECT t.t\n           FROM unnest(duc.tags) t(t)\n          WHERE (NOT ((t.t ~* '^(BDGD|SIG-?R|Distribuicao)$'::text) OR (t.t ~ '^[0-9]{4}$'::text) OR (t.t ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'::text)))\n          ORDER BY (length(t.t)) DESC\n         LIMIT 1)), '[^A-Z0-9_]'::text, '_'::text, 'g'::text)) AS distribuidora,\n    COALESCE((regexp_match(title, '(\\d{4}(?:-\\d{2}-\\d{2})?)$'::text))[1], ( SELECT t.t\n           FROM unnest(duc.tags) t(t)\n          WHERE (t.t ~ '^\\d{4}-\\d{2}-\\d{2}$'::text)\n         LIMIT 1), ( SELECT t.t\n           FROM unnest(duc.tags) t(t)\n          WHERE (t.t ~ '^\\d{4}$'::text)\n         LIMIT 1)) AS ref_raw,\n    foi_importado,\n    ultima_verificacao\n   FROM dataset_url_catalog duc\n  WHERE (url IS NOT NULL);"
+  },
+  {
+    "nome": "lead_com_coordenadas",
+    "definicao": " SELECT l.uc_id,\n    l.import_id,\n    l.cod_id,\n    l.distribuidora_id,\n    l.origem,\n    l.ano,\n    l.status,\n    l.data_conexao,\n    l.cnae,\n    l.grupo_tensao,\n    l.modalidade,\n    l.tipo_sistema,\n    l.situacao,\n    l.classe,\n    l.segmento,\n    l.subestacao,\n    l.municipio_id,\n    l.bairro,\n    l.cep,\n    l.pac,\n    l.pn_con,\n    l.descricao,\n    l.latitude,\n    l.longitude,\n    l.created_at,\n    l.updated_at,\n    l.id,\n    COALESCE(l.latitude, p.latitude) AS latitude_final,\n    COALESCE(l.longitude, p.longitude) AS longitude_final\n   FROM (lead_bruto l\n     LEFT JOIN ponto_notavel p ON ((l.pn_con = p.pn_id)));"
+  },
+  {
+    "nome": "vw_lead_status_enriquecimento",
+    "definicao": " SELECT DISTINCT ON (lead_bruto_id) lead_bruto_id,\n    resultado AS enriquecimento_status,\n    executado_em\n   FROM lead_enrichment_log lel\n  ORDER BY lead_bruto_id, executado_em DESC;"
+  },
+  {
+    "nome": "vw_lead_energia_agg",
+    "definicao": " SELECT lead_bruto_id,\n    avg(COALESCE(energia_ponta, (0)::double precision)) AS media_energia_ponta,\n    avg(COALESCE(energia_fora_ponta, (0)::double precision)) AS media_energia_fora_ponta,\n    avg(COALESCE(energia_total, (0)::double precision)) AS media_energia_total,\n    sum(COALESCE(energia_total, (0)::double precision)) AS soma_energia_total\n   FROM lead_energia_mensal lem\n  GROUP BY lead_bruto_id;"
+  },
+  {
+    "nome": "vw_lead_demanda_agg",
+    "definicao": " SELECT lead_bruto_id,\n    avg(COALESCE(demanda_ponta, (0)::double precision)) AS media_demanda_ponta,\n    avg(COALESCE(demanda_fora_ponta, (0)::double precision)) AS media_demanda_fora_ponta,\n    avg(COALESCE(demanda_contratada, (0)::double precision)) AS media_demanda_contratada,\n    sum(COALESCE(demanda_total, (0)::double precision)) AS soma_demanda_total\n   FROM lead_demanda_mensal ldm\n  GROUP BY lead_bruto_id;"
+  },
+  {
+    "nome": "vw_lead_qualidade_agg",
+    "definicao": " SELECT lead_bruto_id,\n    avg(COALESCE(dic, (0)::double precision)) AS media_dic,\n    avg(COALESCE(fic, (0)::double precision)) AS media_fic,\n    sum(COALESCE(sem_rede, (0)::double precision)) AS total_horas_sem_rede\n   FROM lead_qualidade_mensal lqm\n  GROUP BY lead_bruto_id;"
+  },
+  {
+    "nome": "vw_lead_com_cnae_desc",
+    "definicao": " SELECT lb.uc_id,\n    lb.import_id,\n    lb.cod_id,\n    lb.distribuidora_id,\n    lb.origem,\n    lb.ano,\n    lb.status,\n    lb.data_conexao,\n    lb.cnae,\n    lb.grupo_tensao,\n    lb.modalidade,\n    lb.tipo_sistema,\n    lb.situacao,\n    lb.classe,\n    lb.segmento,\n    lb.subestacao,\n    lb.municipio_id,\n    lb.bairro,\n    lb.cep,\n    lb.pac,\n    lb.pn_con,\n    lb.descricao,\n    lb.latitude,\n    lb.longitude,\n    lb.created_at,\n    lb.updated_at,\n    lb.id,\n    c.descricao AS cnae_descricao,\n    s.descricao AS segmento_desc,\n    m.nome AS municipio_nome,\n    m.uf,\n    d.nome AS distribuidora_nome\n   FROM ((((lead_bruto lb\n     LEFT JOIN cnae c ON (((c.id)::text = (lb.cnae)::text)))\n     LEFT JOIN segmento_mercado s ON ((s.id = lb.segmento)))\n     LEFT JOIN municipio m ON ((m.id = lb.municipio_id)))\n     LEFT JOIN distribuidora d ON ((d.id = lb.distribuidora_id)));"
+  },
+  {
+    "nome": "vw_lead_completo_detalhado",
+    "definicao": " SELECT lb.uc_id,\n    lb.import_id,\n    lb.cod_id,\n    lb.distribuidora_id,\n    lb.origem,\n    lb.ano,\n    lb.status,\n    lb.data_conexao,\n    lb.cnae,\n    lb.grupo_tensao,\n    lb.modalidade,\n    lb.tipo_sistema,\n    lb.situacao,\n    lb.classe,\n    lb.segmento,\n    lb.subestacao,\n    lb.municipio_id,\n    lb.bairro,\n    lb.cep,\n    lb.pac,\n    lb.pn_con,\n    lb.descricao,\n    lb.latitude,\n    lb.longitude,\n    lb.created_at,\n    lb.updated_at,\n    lb.id,\n    c.descricao AS cnae_descricao,\n    s.descricao AS segmento_desc,\n    m.nome AS municipio_nome,\n    m.uf,\n    d.nome AS distribuidora_nome,\n    cc.latitude_final,\n    cc.longitude_final,\n    energia.media_energia_ponta,\n    energia.media_energia_fora_ponta,\n    energia.media_energia_total,\n    energia.soma_energia_total,\n    demanda.media_demanda_ponta,\n    demanda.media_demanda_fora_ponta,\n    demanda.media_demanda_contratada,\n    demanda.soma_demanda_total,\n    qualidade.media_dic,\n    qualidade.media_fic,\n    qualidade.total_horas_sem_rede,\n    enr.enriquecimento_status,\n    enr.executado_em AS data_enriquecimento\n   FROM (((((((((lead_bruto lb\n     LEFT JOIN cnae c ON (((c.id)::text = (lb.cnae)::text)))\n     LEFT JOIN segmento_mercado s ON ((s.id = lb.segmento)))\n     LEFT JOIN municipio m ON ((m.id = lb.municipio_id)))\n     LEFT JOIN distribuidora d ON ((d.id = lb.distribuidora_id)))\n     LEFT JOIN lead_com_coordenadas cc ON ((cc.uc_id = lb.uc_id)))\n     LEFT JOIN vw_lead_energia_agg energia ON ((energia.lead_bruto_id = lb.id)))\n     LEFT JOIN vw_lead_demanda_agg demanda ON ((demanda.lead_bruto_id = lb.id)))\n     LEFT JOIN vw_lead_qualidade_agg qualidade ON ((qualidade.lead_bruto_id = lb.id)))\n     LEFT JOIN vw_lead_status_enriquecimento enr ON ((enr.lead_bruto_id = lb.id)));"
+  },
+  {
+    "nome": "dataset_url_normalized",
+    "definicao": " SELECT id,\n    title,\n    url,\n    tags,\n    url_hash,\n    foi_importado,\n    created,\n    modified,\n    origem,\n    tipo,\n    snippet,\n    ultima_verificacao,\n    observacoes,\n    (regexp_match(title, '(\\d{4}-\\d{2}-\\d{2})$'::text))[1] AS data_str,\n    to_date((regexp_match(title, '(\\d{4}-\\d{2}-\\d{2})$'::text))[1], 'YYYY-MM-DD'::text) AS data_ref,\n    (EXTRACT(year FROM to_date((regexp_match(title, '(\\d{4}-\\d{2}-\\d{2})$'::text))[1], 'YYYY-MM-DD'::text)))::integer AS ano,\n    btrim(regexp_replace(title, '\\s*-\\s*\\d{4}-\\d{2}-\\d{2}$'::text, ''::text, 'g'::text)) AS distribuidora\n   FROM dataset_url_catalog duc;"
+  }
+]

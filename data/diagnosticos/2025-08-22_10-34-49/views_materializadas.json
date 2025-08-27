@@ -1,0 +1,18 @@
+[
+  {
+    "nome": "mv_lead_completo_detalhado",
+    "definicao": " SELECT (lb.id)::text AS id,\n    lb.uc_id,\n    lb.cod_id,\n    lb.import_id,\n    lb.distribuidora_id,\n    lb.origem,\n    NULL::integer AS ano,\n    lb.status,\n    NULL::date AS data_conexao,\n    lb.grupo_tensao,\n    lb.modalidade,\n    NULL::text AS tipo_sistema,\n    NULL::text AS situacao,\n    lb.classe,\n    lb.cnae,\n    lb.municipio_id,\n    m.nome AS municipio,\n    m.uf AS estado,\n    lb.bairro,\n    lb.cep,\n    lb.pac,\n    lb.pn_con,\n    NULL::text AS descricao,\n    cc.latitude_final AS latitude,\n    cc.longitude_final AS longitude,\n    lb.created_at,\n    lb.updated_at,\n    d.nome AS distribuidora_nome,\n    NULL::text AS cnae_descricao,\n    seg.descricao AS segmento_desc,\n    NULL::text AS cnpj,\n    NULL::text AS nome_fantasia,\n    NULL::text AS razao_social,\n    NULL::text AS telefone,\n    NULL::text AS email,\n    NULL::text AS site,\n    NULL::text AS receita_situacao,\n    NULL::text AS receita_abertura,\n    NULL::text AS receita_natureza,\n    NULL::text AS receita_porte,\n    NULL::double precision AS receita_capital_social,\n    NULL::text AS receita_atividade_principal,\n    NULL::text AS receita_municipio,\n    NULL::text AS receita_uf,\n    NULL::timestamp without time zone AS enriched_at,\n    ql.media_dic,\n    ql.media_fic,\n    ql.total_horas_sem_rede AS soma_horas_sem_rede,\n    en.media_energia_total,\n    en.media_energia_ponta,\n    en.media_energia_fora_ponta AS media_energia_fora,\n    (dm.media_demanda_ponta + dm.media_demanda_fora_ponta) AS media_demanda_total,\n    dm.media_demanda_ponta,\n    dm.media_demanda_fora_ponta AS media_demanda_fora\n   FROM (((((((lead_bruto lb\n     LEFT JOIN lead_com_coordenadas cc ON ((cc.uc_id = lb.uc_id)))\n     LEFT JOIN municipio m ON ((m.id = lb.municipio_id)))\n     LEFT JOIN distribuidora d ON ((d.id = lb.distribuidora_id)))\n     LEFT JOIN segmento_mercado seg ON ((seg.id = lb.segmento)))\n     LEFT JOIN vw_lead_energia_agg en ON ((en.lead_bruto_id = lb.id)))\n     LEFT JOIN vw_lead_demanda_agg dm ON ((dm.lead_bruto_id = lb.id)))\n     LEFT JOIN vw_lead_qualidade_agg ql ON ((ql.lead_bruto_id = lb.id)));"
+  },
+  {
+    "nome": "resumo_energia_municipio",
+    "definicao": " SELECT m.id AS municipio_id,\n    m.nome AS municipio_nome,\n    m.uf,\n    sum(energia.soma_energia_total) AS energia_total_municipio,\n    avg(energia.media_energia_total) AS media_energia_municipio\n   FROM ((vw_lead_completo_detalhado lcd\n     LEFT JOIN municipio m ON ((m.id = lcd.municipio_id)))\n     LEFT JOIN vw_lead_energia_agg energia ON ((energia.lead_bruto_id = lcd.id)))\n  GROUP BY m.id, m.nome, m.uf;"
+  },
+  {
+    "nome": "resumo_leads_distribuidora",
+    "definicao": " SELECT d.id AS distribuidora_id,\n    d.nome AS distribuidora_nome,\n    lb.origem AS camada,\n    lb.status,\n    count(*) AS total_leads\n   FROM (lead_bruto lb\n     LEFT JOIN distribuidora d ON ((d.id = lb.distribuidora_id)))\n  GROUP BY d.id, d.nome, lb.origem, lb.status;"
+  },
+  {
+    "nome": "resumo_leads_ano_camada",
+    "definicao": " SELECT ano,\n    origem AS camada,\n    count(*) AS total_leads\n   FROM lead_bruto lb\n  GROUP BY ano, origem;"
+  }
+]

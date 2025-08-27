@@ -1,0 +1,36 @@
+tabela,nome,definicao
+import_queue,import_queue_pkey,CREATE UNIQUE INDEX import_queue_pkey ON intel_lead.import_queue USING btree (id)
+import_queue,import_queue_status_idx,"CREATE INDEX import_queue_status_idx ON intel_lead.import_queue USING btree (status, priority, available_at)"
+ponto_notavel,idx_ponto_notavel_combo,"CREATE INDEX idx_ponto_notavel_combo ON intel_lead.ponto_notavel USING btree (distribuidora_id, ano, pn_id)"
+ponto_notavel,ponto_notavel_pkey,"CREATE UNIQUE INDEX ponto_notavel_pkey ON intel_lead.ponto_notavel USING btree (pn_id, distribuidora_id, ano)"
+lead_energia_mensal,lead_energia_mensal_pkey,CREATE UNIQUE INDEX lead_energia_mensal_pkey ON intel_lead.lead_energia_mensal USING btree (id)
+lead_energia_mensal,idx_energia_lead_id,CREATE INDEX idx_energia_lead_id ON intel_lead.lead_energia_mensal USING btree (lead_bruto_id)
+lead_energia_mensal,idx_energia_mes,CREATE INDEX idx_energia_mes ON intel_lead.lead_energia_mensal USING btree (mes)
+lead_qualidade_mensal,lead_qualidade_mensal_pkey,CREATE UNIQUE INDEX lead_qualidade_mensal_pkey ON intel_lead.lead_qualidade_mensal USING btree (id)
+lead_qualidade_mensal,idx_qualidade_lead_id,CREATE INDEX idx_qualidade_lead_id ON intel_lead.lead_qualidade_mensal USING btree (lead_bruto_id)
+lead_demanda_mensal,lead_demanda_mensal_pkey,CREATE UNIQUE INDEX lead_demanda_mensal_pkey ON intel_lead.lead_demanda_mensal USING btree (id)
+lead_demanda_mensal,idx_demanda_lead_id,CREATE INDEX idx_demanda_lead_id ON intel_lead.lead_demanda_mensal USING btree (lead_bruto_id)
+lead_enrichment_log,lead_enrichment_log_pkey,CREATE UNIQUE INDEX lead_enrichment_log_pkey ON intel_lead.lead_enrichment_log USING btree (id)
+lead_enrichment_log,idx_enrichment_log_lead_etapa,"CREATE INDEX idx_enrichment_log_lead_etapa ON intel_lead.lead_enrichment_log USING btree (lead_bruto_id, etapa)"
+modalidade_tarifaria,modalidade_tarifaria_pkey,CREATE UNIQUE INDEX modalidade_tarifaria_pkey ON intel_lead.modalidade_tarifaria USING btree (id)
+tipo_sistema,tipo_sistema_pkey,CREATE UNIQUE INDEX tipo_sistema_pkey ON intel_lead.tipo_sistema USING btree (id)
+situacao_uc,situacao_uc_pkey,CREATE UNIQUE INDEX situacao_uc_pkey ON intel_lead.situacao_uc USING btree (id)
+classe_consumo,classe_consumo_pkey,CREATE UNIQUE INDEX classe_consumo_pkey ON intel_lead.classe_consumo USING btree (id)
+distribuidora,distribuidora_pkey,CREATE UNIQUE INDEX distribuidora_pkey ON intel_lead.distribuidora USING btree (id)
+segmento_mercado,segmento_mercado_pkey,CREATE UNIQUE INDEX segmento_mercado_pkey ON intel_lead.segmento_mercado USING btree (id)
+municipio,municipio_pkey,CREATE UNIQUE INDEX municipio_pkey ON intel_lead.municipio USING btree (id)
+lead_bruto,idx_lead_distribuidora_ano,"CREATE INDEX idx_lead_distribuidora_ano ON intel_lead.lead_bruto USING btree (distribuidora_id, ano)"
+lead_bruto,idx_lead_pncon,CREATE INDEX idx_lead_pncon ON intel_lead.lead_bruto USING btree (pn_con)
+lead_bruto,idx_lead_bruto_uc_id,CREATE INDEX idx_lead_bruto_uc_id ON intel_lead.lead_bruto USING btree (uc_id)
+lead_bruto,lead_bruto_pkey,CREATE UNIQUE INDEX lead_bruto_pkey ON intel_lead.lead_bruto USING btree (id)
+lead_bruto,idx_lead_bruto_status,CREATE INDEX idx_lead_bruto_status ON intel_lead.lead_bruto USING btree (status)
+lead_bruto,idx_lead_bruto_municipio,CREATE INDEX idx_lead_bruto_municipio ON intel_lead.lead_bruto USING btree (municipio_id)
+grupo_tensao,grupo_tensao_pkey,CREATE UNIQUE INDEX grupo_tensao_pkey ON intel_lead.grupo_tensao USING btree (id)
+cnae,cnae_pkey,CREATE UNIQUE INDEX cnae_pkey ON intel_lead.cnae USING btree (id)
+import_status,import_status_pkey,CREATE UNIQUE INDEX import_status_pkey ON intel_lead.import_status USING btree (import_id)
+import_status,idx_import_status_combo,"CREATE INDEX idx_import_status_combo ON intel_lead.import_status USING btree (camada, distribuidora_id, ano)"
+dataset_url_catalog,dataset_url_catalog_pkey,CREATE UNIQUE INDEX dataset_url_catalog_pkey ON intel_lead.dataset_url_catalog USING btree (id)
+dataset_url_catalog,dataset_url_catalog_url_key,CREATE UNIQUE INDEX dataset_url_catalog_url_key ON intel_lead.dataset_url_catalog USING btree (url)
+dataset_url_catalog,dataset_url_catalog_url_hash_key,CREATE UNIQUE INDEX dataset_url_catalog_url_hash_key ON intel_lead.dataset_url_catalog USING btree (url_hash)
+download_log,download_log_pkey,CREATE UNIQUE INDEX download_log_pkey ON intel_lead.download_log USING btree (id)
+download_log,idx_download_log_dist_ano,"CREATE INDEX idx_download_log_dist_ano ON intel_lead.download_log USING btree (distribuidora, ano)"
