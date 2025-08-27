@@ -3,15 +3,11 @@ import { useState } from 'react';
 
 export default function ButtonImportar({ distribuidoras, anos }: { distribuidoras: string[], anos: number[] }) {
   const [loading, setLoading] = useState(false);
-
+  const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
   const handleImportar = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/v1/importar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ distribuidoras, anos }),
-      });
+      const res = await fetch(`${API}/v1/importar`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({distribuidoras, anos}) });
       const data = await res.json();
       console.log('Importado:', data);
       alert('Importação iniciada com sucesso!');
